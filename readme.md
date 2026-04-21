@@ -1,13 +1,4 @@
-# Project Name
-
-> **Note**: This is a project template.
-
-## Checklist
-
-- [ ] Update [`readme.md`](./readme.md) (this file)
-- [ ] Update [`package.json`](./package.json) details
-- [ ] Update [`devcontainer.json`](./.devcontainer/devcontainer.json)
-- [ ] Install Renovate on the remote repository: [Renovate Documentation](https://docs.renovatebot.com/getting-started/installing-onboarding/)
+# Tagikon
 
 ## Development
 

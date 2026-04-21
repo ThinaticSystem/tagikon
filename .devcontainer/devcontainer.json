@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
 {
-	"name": "Todo",
+	"name": "Tagikon",
 	"image": "mcr.microsoft.com/devcontainers/base:noble",
 	"features": {
 		"ghcr.io/devcontainers/features/node:1": {
@@ -11,7 +11,7 @@
 			"nvmVersion": "latest"
 		}
 	},
-	"workspaceFolder": "/todo",
+	"workspaceFolder": "/tagikon",
 	"workspaceMount": "source=${localWorkspaceFolder},target=${containerWorkspaceFolder},type=bind,consistency=cached",
 	"postCreateCommand": ".devcontainer/post-create.sh",
 	"customizations": {
