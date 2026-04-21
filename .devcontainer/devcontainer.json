@@ -27,12 +27,12 @@
 			],
 			"settings": {
 				"editor.defaultFormatter": "oxc.oxc-vscode",
+				"js/ts.experimental.useTsgo": true,
 				"json.schemaDownload.trustedDomains": {
 					"https://docs.renovatebot.com/": true
 				},
 				"oxc.configPath": ".oxfmtrc.json",
-				"oxc.typeAware": true,
-				"typescript.experimental.useTsgo": true
+				"oxc.typeAware": true
 			}
 		}
 	}
