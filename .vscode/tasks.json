@@ -1,0 +1,54 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "format",
+			"detail": "Format all files",
+			"type": "npm",
+			"script": "format",
+			"problemMatcher": []
+		},
+		{
+			"label": "format:dry",
+			"detail": "Check formatting of all files",
+			"type": "npm",
+			"script": "format:dry",
+			"problemMatcher": []
+		},
+		{
+			"label": "lint",
+			"detail": "Lint all files",
+			"type": "npm",
+			"script": "lint",
+			"problemMatcher": []
+		},
+		{
+			"label": "lint:fix",
+			"detail": "Lint and fix all files",
+			"type": "npm",
+			"script": "lint:fix",
+			"problemMatcher": []
+		},
+		{
+			"label": "typecheck",
+			"detail": "Type check all files",
+			"type": "npm",
+			"script": "typecheck",
+			"problemMatcher": []
+		},
+		{
+			"label": "test",
+			"detail": "Start test runner in watch mode",
+			"type": "npm",
+			"script": "test",
+			"problemMatcher": []
+		},
+		{
+			"label": "check",
+			"detail": "Run all checks: format, lint, typecheck, and tests without fixing",
+			"type": "npm",
+			"script": "check",
+			"problemMatcher": []
+		}
+	]
+}

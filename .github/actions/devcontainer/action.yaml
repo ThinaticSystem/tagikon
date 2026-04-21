@@ -1,0 +1,18 @@
+name: Use Dev Container
+description: Builds the Dev Container and updates the image cache
+inputs:
+  cache_image_name:
+    description: "The name of the image to cache and push"
+    required: false
+  run_command:
+    description: "The command to run inside the container after building"
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: devcontainers/ci@v0.3.1900000449
+      with:
+        imageName: ${{ inputs.cache_image_name }}
+        cacheFrom: ${{ inputs.cache_image_name }}
+        push: always
+        runCmd: ${{ inputs.run_command }}

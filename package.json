@@ -1,0 +1,31 @@
+{
+	"name": "todo",
+	"version": "0.1.0",
+	"type": "module",
+	"main": "src/index.ts",
+	"scripts": {
+		"dev": "node src/index.ts",
+		"format": "oxfmt",
+		"format:dry": "oxfmt --check",
+		"lint": "oxlint --type-aware",
+		"lint:fix": "oxlint --type-aware --fix",
+		"typecheck": "tsgo --build",
+		"test": "vitest watch",
+		"test:run": "vitest run",
+		"check": "pnpm format:dry && pnpm lint && pnpm typecheck && pnpm test:run"
+	},
+	"devDependencies": {
+		"@types/node": "24 - 24.13",
+		"@typescript/native-preview": "7.0.0-dev.20260421.1",
+		"oxfmt": "^0.46.0",
+		"oxlint": "^1.42.0",
+		"oxlint-tsgolint": "^0.21.0",
+		"vitest": "^4.0.18"
+	},
+	"packageManager": "pnpm@10.33.0",
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild"
+		]
+	}
+}
