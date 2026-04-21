@@ -17,13 +17,13 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				"EditorConfig.EditorConfig@0.18.1",
-				"GitHub.vscode-github-actions@0.31.0",
-				"ms-vscode-remote.remote-containers@0.446.0",
-				"oxc.oxc-vscode@1.47.0",
-				"timonwong.shellcheck@0.38.8",
-				"TypeScriptTeam.native-preview@0.20260224.1",
-				"vitest.explorer@1.44.0"
+				"EditorConfig.EditorConfig@0.18.2",
+				"GitHub.vscode-github-actions@0.31.5",
+				"ms-vscode-remote.remote-containers@0.456.0",
+				"oxc.oxc-vscode@1.53.0",
+				"timonwong.shellcheck@0.39.3",
+				"TypeScriptTeam.native-preview@0.20260423.1",
+				"vitest.explorer@1.50.2"
 			],
 			"settings": {
 				"editor.defaultFormatter": "oxc.oxc-vscode",
