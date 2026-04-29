@@ -1,11 +1,32 @@
 import type { ObjectKey, TagId } from "../core/ids.ts";
 import type { IdOf, KindOf, Tag } from "../core/tag.ts";
-import type { TaginkonPlugin } from "../plugin/types.ts";
+import type { TagCondition } from "../finder/condition.ts";
+import type { PluginContext } from "../plugin/context.ts";
+import type { ApiShape, TaginkonPlugin } from "../plugin/types.ts";
+import type { PluginRegistration } from "../plugin/use.ts";
 import type { StorageAdapter } from "../storage/adapter.ts";
 
 import { TagNotFoundError } from "../core/errors.ts";
 import { TAG_KIND } from "../core/tag-kind.ts";
 import { collectHooks, runPipeline } from "../hook/runner.ts";
+import { createPluginContext } from "../plugin/context.ts";
+
+//#region Type-level API merging
+type UnionToIntersection<TUnion> = (TUnion extends unknown ? (x: TUnion) => void : never) extends (
+	x: infer TIntersect,
+) => void
+	? TIntersect
+	: never;
+
+type ApiOf<TRegistration> =
+	TRegistration extends PluginRegistration<infer TNamespace, infer TApi>
+		? { readonly [TKey in TNamespace]: TApi }
+		: Record<never, never>;
+
+type MergeApis<TRegistrations extends readonly unknown[]> = UnionToIntersection<
+	ApiOf<TRegistrations[number]>
+>;
+// #endregion
 
 export interface Server<TTag extends Tag> {
 	addTag(name: string, options?: Partial<Omit<TTag, "id" | "name">>): Promise<TTag>;
@@ -15,16 +36,29 @@ export interface Server<TTag extends Tag> {
 	tagObjects(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void>;
 	untagObjects(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void>;
 	resetWithTags(objectKey: ObjectKey, tagIds: readonly IdOf<TTag>[]): Promise<void>;
-	findObjectsByTags(query: unknown): Promise<ObjectKey[]>;
+	findObjectsByTags(query: TagCondition<IdOf<TTag>>): Promise<ObjectKey[]>;
 }
 
-export interface ServerOptions<TTag extends Tag> {
+export interface ServerOptions<
+	TTag extends Tag,
+	TRegistrations extends readonly PluginRegistration<symbol, ApiShape>[] = readonly [],
+> {
 	storage: StorageAdapter<TTag>;
-	plugins?: TaginkonPlugin<TTag>[];
+	plugins?: TRegistrations;
 }
 
-export function createServer<TTag extends Tag>(options: ServerOptions<TTag>): Server<TTag> {
-	const { storage, plugins = [] } = options;
+export const createServer = <
+	TTag extends Tag,
+	TRegistrations extends readonly PluginRegistration<symbol, ApiShape>[] = readonly [],
+>(
+	options: ServerOptions<TTag, TRegistrations>,
+): Server<TTag> & MergeApis<TRegistrations> => {
+	const { storage, plugins: registrations = [] as unknown as TRegistrations } = options;
+
+	// Cast to TTag: use() verified compatibility at the call site
+	const plugins = registrations.map(
+		(r) => r.plugin as unknown as TaginkonPlugin<TTag, symbol, ApiShape>,
+	);
 
 	const addTagHooks = collectHooks(plugins.map((p) => p.addTag));
 	const listTagsHooks = collectHooks(plugins.map((p) => p.listTags));
@@ -37,7 +71,7 @@ export function createServer<TTag extends Tag>(options: ServerOptions<TTag>): Se
 
 	const finder = plugins.find((p) => p.finder)?.finder;
 
-	return {
+	const server: Server<TTag> = {
 		async addTag(name, opts) {
 			const rawInput = {
 				name,
@@ -107,4 +141,28 @@ export function createServer<TTag extends Tag>(options: ServerOptions<TTag>): Se
 			});
 		},
 	};
-}
+
+	const namespacedApis: Record<
+		symbol,
+		Record<string, (...args: readonly unknown[]) => unknown>
+	> = {};
+	for (const registration of registrations) {
+		if (!registration.plugin.api || !registration.namespace) continue;
+
+		const ctx = createPluginContext(storage, registration.permissions);
+		const api = registration.plugin.api as Record<
+			string,
+			(ctx: PluginContext<TTag>, ...args: readonly unknown[]) => unknown
+		>;
+		const nsApi: Record<string, (...args: readonly unknown[]) => unknown> = {};
+		for (const key of Object.keys(api)) {
+			const method = api[key];
+			if (method) {
+				nsApi[key] = (...args) => method(ctx, ...args);
+			}
+		}
+		namespacedApis[registration.namespace] = nsApi;
+	}
+
+	return Object.assign(server, namespacedApis) as Server<TTag> & MergeApis<TRegistrations>;
+};

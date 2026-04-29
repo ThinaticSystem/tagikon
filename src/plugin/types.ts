@@ -1,10 +1,12 @@
 import type { ObjectKey } from "../core/ids.ts";
 import type { IdOf, Tag } from "../core/tag.ts";
+import type { TagCondition } from "../finder/condition.ts";
 import type { HookPhases } from "../hook/types.ts";
+import type { PermissionManifest } from "../security/permission.ts";
 import type { StorageAdapter } from "../storage/adapter.ts";
+import type { PluginContext } from "./context.ts";
 
-// ── Hook input / output type aliases per operation ──────────────────────────
-
+//#region Hook input / output type aliases per operation
 export type AddTagInput<TTag extends Tag> = Omit<TTag, "id">;
 
 export type EditTagInput<TTag extends Tag> = {
@@ -31,17 +33,36 @@ export type ResetWithTagsInput<TTag extends Tag> = {
 
 export type ListTagsInput = Record<never, never>;
 
-export type FindObjectsByTagsInput = { query: unknown };
+export type FindObjectsByTagsInput<TTag extends Tag> = { query: TagCondition<IdOf<TTag>> };
+//#endregion
 
-// ── Finder plugin ────────────────────────────────────────────────────────────
-
+//#region Finder plugin
 export interface FinderImplement<TTag extends Tag> {
-	findObjectsByTags(query: unknown, storage: StorageAdapter<TTag>): Promise<ObjectKey[]>;
+	findObjectsByTags(
+		query: TagCondition<IdOf<TTag>>,
+		storage: StorageAdapter<TTag>,
+	): Promise<ObjectKey[]>;
 }
+// #endregion
 
-// ── Plugin interface ─────────────────────────────────────────────────────────
+//#region Custom API
+export type ApiShape = Record<string, (...args: readonly unknown[]) => unknown>;
 
-export interface TaginkonPlugin<TTag extends Tag> {
+type ApiImplementation<TTag extends Tag, TApi extends ApiShape> = {
+	readonly [TKey in keyof TApi]: TApi[TKey] extends (...args: infer TArgs) => infer TReturn
+		? (ctx: PluginContext<TTag>, ...args: TArgs) => TReturn
+		: never;
+};
+// #endregion
+
+//#region Plugin interface
+export interface TaginkonPlugin<
+	TTag extends Tag,
+	TNamespace extends symbol = never,
+	TApi extends ApiShape = Record<never, never>,
+> {
+	namespace?: TNamespace;
+	permissions?: PermissionManifest;
 	addTag?: HookPhases<AddTagInput<TTag>, TTag>;
 	listTags?: HookPhases<ListTagsInput, TTag[]>;
 	editTag?: HookPhases<EditTagInput<TTag>, TTag>;
@@ -49,6 +70,8 @@ export interface TaginkonPlugin<TTag extends Tag> {
 	tagObjects?: HookPhases<TagObjectsInput<TTag>, void>;
 	untagObjects?: HookPhases<UntagObjectsInput<TTag>, void>;
 	resetWithTags?: HookPhases<ResetWithTagsInput<TTag>, void>;
-	findObjectsByTags?: HookPhases<FindObjectsByTagsInput, ObjectKey[]>;
+	findObjectsByTags?: HookPhases<FindObjectsByTagsInput<TTag>, ObjectKey[]>;
 	finder?: FinderImplement<TTag>;
+	api?: ApiImplementation<TTag, TApi>;
 }
+// #endregion

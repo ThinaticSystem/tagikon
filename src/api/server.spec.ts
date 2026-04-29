@@ -1,10 +1,12 @@
 import type { Tag } from "../core/tag.ts";
+import type { TaginkonPlugin } from "../plugin/types.ts";
 
 import { expect, suite, test, vi } from "vitest";
 
 import { TagAlreadyExistsError, TagNotFoundError } from "../core/errors.ts";
 import { objectKey } from "../core/ids.ts";
 import { TAG_KIND } from "../core/tag-kind.ts";
+import { use } from "../plugin/use.ts";
 import { MemoryStorageAdapter } from "../storage/memory.ts";
 import { createServer } from "./server.ts";
 
@@ -118,7 +120,7 @@ suite("Server", () => {
 			const storage = new MemoryStorageAdapter();
 			const server = createServer({
 				storage,
-				plugins: [{ addTag: { tapRaw } }],
+				plugins: [use({ addTag: { tapRaw } })],
 			});
 			await server.addTag("observe");
 			expect(tapRaw).toHaveBeenCalledWith(expect.objectContaining({ name: "observe" }));
@@ -129,13 +131,13 @@ suite("Server", () => {
 			const server = createServer({
 				storage,
 				plugins: [
-					{
+					use({
 						addTag: {
 							transform(input) {
 								return { ...input, name: input.name.toUpperCase() };
 							},
 						},
-					},
+					}),
 				],
 			});
 			const tag = await server.addTag("hello");
@@ -147,10 +149,49 @@ suite("Server", () => {
 			const storage = new MemoryStorageAdapter();
 			const server = createServer({
 				storage,
-				plugins: [{ addTag: { after } }],
+				plugins: [use({ addTag: { after } })],
 			});
 			const tag = await server.addTag("hook-test");
 			expect(after).toHaveBeenCalledWith(expect.anything(), tag);
+		});
+	});
+
+	suite("plugin custom API", () => {
+		const MY_PLUGIN_NS: unique symbol = Symbol("my-plugin");
+
+		test("exposes custom API under the plugin namespace symbol", async () => {
+			const storage = new MemoryStorageAdapter();
+			const plugin: TaginkonPlugin<Tag, typeof MY_PLUGIN_NS, { greet(): string }> = {
+				namespace: MY_PLUGIN_NS,
+				api: {
+					greet(_ctx) {
+						return "hello";
+					},
+				},
+			};
+			const server = createServer({ storage, plugins: [use(plugin)] });
+			expect(server[MY_PLUGIN_NS].greet()).toBe("hello");
+		});
+
+		test("custom API receives ctx with storage access", async () => {
+			const storage = new MemoryStorageAdapter();
+			const plugin: TaginkonPlugin<Tag, typeof MY_PLUGIN_NS, { countTags(): Promise<number> }> = {
+				namespace: MY_PLUGIN_NS,
+				permissions: { permissions: new Set(["tag:read"]) },
+				api: {
+					async countTags(ctx) {
+						const tags = await ctx.storage.listTags();
+						return tags.length;
+					},
+				},
+			};
+			const server = createServer({
+				storage,
+				plugins: [use(plugin, { permissions: new Set(["tag:read"]) })],
+			});
+			await server.addTag("a");
+			await server.addTag("b");
+			expect(await server[MY_PLUGIN_NS].countTags()).toBe(2);
 		});
 	});
 
@@ -161,16 +202,16 @@ suite("Server", () => {
 
 		test("addTag propagates plugin fields through transform", async () => {
 			const storage = new MemoryStorageAdapter<TagWithDesc>();
-			const server = createServer<TagWithDesc>({
+			const server = createServer({
 				storage,
 				plugins: [
-					{
+					use<TagWithDesc>({
 						addTag: {
 							transform(input) {
 								return { ...input, description: input.description ?? "" };
 							},
 						},
-					},
+					}),
 				],
 			});
 			const tag = await server.addTag("extended", { description: "hello" });

@@ -38,6 +38,10 @@
 - 型安全を最優先。`any` / `unknown` を不必要に使わない（型制約には `unknown`、条件型推論でも `any` 禁止）
 - 副作用のない純粋関数を基本とし、副作用は Storage Adapter に閉じ込める
 - エラーは必ず `TaginkonError`（`src/core/errors.ts`）を継承する。`Error` の直接継承禁止（文字列スロー禁止）
+- TypeScriptスタイルのprivateアクセサーの使用は禁止。ECMAScriptの`#`-prefixアクセサーを使用する
+- アクロニムの使用は原則禁止（例外的に `API` / `ID` / `URL` など、既存の概念の場合のみ許可）
+
+  コールバック引数の命名など、即時的な記述の場合もアクロニムは禁止
 
 ### null / undefined の使い分け
 
@@ -91,6 +95,20 @@ function foo<T extends Tag>(...): ...
 function foo<T extends Tag<string, unknown>>(...): ...
 ```
 
+### 関数は可能な限りアロー関数で宣言する
+
+関数宣言は `function` キーワードではなくアロー関数で行う。`this` を使う必要やジェネレーターを返す場合は例外的に `function` 宣言を許可する。
+
+```typescript
+// Good — this を使わない関数はアロー関数で宣言
+const myFunction = (arg: Type): ReturnType => { ... };
+```
+
+```typescript
+// Bad — this を使わない関数は function 宣言禁止
+function myFunction(arg: Type): ReturnType { ... }
+```
+
 ### 配列を受け取る関数の引数は readonly
 
 関数・メソッドが配列を受け取る場合、引数型は `readonly` を付ける。呼び出し側は変更の意図がないことをコンパイル時に保証でき、実装側は不変であることを期待できる。
@@ -113,11 +131,11 @@ pickItem<TElement>(items: TElement[], index: number): null | TElement;
 // Good — brand symbol・型・factoryが1グループ
 declare const tagIdBrand: unique symbol;
 export type TagId = string & { readonly [tagIdBrand]: never };
-export function tagId(raw: string): TagId { ... }
+export const tagId = (raw: string): TagId => { ... };
 
 declare const objectKeyBrand: unique symbol;
 export type ObjectKey = string & { readonly [objectKeyBrand]: never };
-export function objectKey(raw: string): ObjectKey { ... }
+export const objectKey = (raw: string): ObjectKey => { ... };
 
 // Bad — 全symbolをまとめ、全型をまとめ、全factoryをまとめる（概念が分断される）
 ```
@@ -376,37 +394,41 @@ pnpm check         # CI相当の全チェック
 
 ### 完了
 
-| ファイル                     | 内容                                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------------------------ |
-| `src/core/ids.ts`            | `TagId` / `ObjectKey` branded types + factory                                                    |
-| `src/core/tag-kind.ts`       | `TAG_KIND` 定数 + `TagKind` 型                                                                   |
-| `src/core/tag.ts`            | `Tag<TKind, TId>` (default: string, unknown) + `KindOf<TTag>` + `IdOf<TTag>`                     |
-| `src/core/relation.ts`       | `TagRelation` インターフェース                                                                   |
-| `src/core/errors.ts`         | `TaginkonError` / `TagNotFoundError` / `TagAlreadyExistsError` / `ObjectNotTaggedError`          |
-| `src/storage/adapter.ts`     | `StorageAdapter<TTag>` インターフェース（default: `Tag<TagKind, TagId>`）                        |
-| `src/storage/memory.ts`      | `MemoryStorageAdapter<TTag>` インメモリ参照実装（UUID生成・双方向リレーション管理）              |
-| `src/storage/memory.spec.ts` | `MemoryStorageAdapter` 単体テスト                                                                |
-| `src/hook/types.ts`          | `TapRawFn` / `TransformFn<TInput, TTransformed>` / `TapTransformedFn` / `AfterFn` / `HookPhases` |
-| `src/hook/runner.ts`         | `collectHooks` / `runPipeline`（4フェーズ実行エンジン）                                          |
-| `src/plugin/types.ts`        | `TaginkonPlugin<TTag>` / `FinderImplement<TTag>` + 各操作の Input 型エイリアス                   |
-| `src/api/server.ts`          | `Server<TTag>` インターフェース + `createServer`（全8操作）                                      |
-| `src/api/server.spec.ts`     | Server 統合テスト（フック動作・TagImplement拡張含む）                                            |
-| `src/index.ts`               | 公開エントリーポイント（上記すべてをre-export）                                                  |
+| ファイル                           | 内容                                                                                                 |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/core/ids.ts`                  | `TagId` / `ObjectKey` branded types + factory                                                        |
+| `src/core/tag-kind.ts`             | `TAG_KIND` 定数 + `TagKind` 型                                                                       |
+| `src/core/tag.ts`                  | `Tag<TKind, TId>` (default: string, unknown) + `KindOf<TTag>` + `IdOf<TTag>`                         |
+| `src/core/relation.ts`             | `TagRelation` インターフェース                                                                       |
+| `src/core/errors.ts`               | `TaginkonError` / `TagNotFoundError` / `TagAlreadyExistsError` / `ObjectNotTaggedError`              |
+| `src/storage/adapter.ts`           | `StorageAdapter<TTag>` インターフェース（default: `Tag<TagKind, TagId>`）                            |
+| `src/storage/memory.ts`            | `MemoryStorageAdapter<TTag>` インメモリ参照実装（`idPlugin` 注入対応・双方向リレーション管理）       |
+| `src/storage/memory.spec.ts`       | `MemoryStorageAdapter` 単体テスト（カスタム idPlugin スイート含む）                                  |
+| `src/hook/types.ts`                | `TapRawFn` / `TransformFn<TInput, TTransformed>` / `TapTransformedFn` / `AfterFn` / `HookPhases`     |
+| `src/hook/runner.ts`               | `collectHooks` / `runPipeline`（4フェーズ実行エンジン）                                              |
+| `src/plugin/types.ts`              | `TaginkonPlugin<TTag>` / `FinderImplement<TTag>` + 各操作の Input 型エイリアス                       |
+| `src/plugin/tag-id-plugin.ts`      | `TagIdPlugin<TId>` インターフェース + `stringTagIdPlugin` ヘルパー + `UUID_TAG_ID_PLUGIN` デフォルト |
+| `src/plugin/tag-id-plugin.spec.ts` | `TagIdPlugin` ユニットテスト                                                                         |
+| `src/finder/condition.ts`          | `TagCondition<TId>` discriminated union + `has` / `and` / `or` / `not` builder 関数                  |
+| `src/finder/condition.spec.ts`     | condition builder ユニットテスト                                                                     |
+| `src/finder/memory-finder.ts`      | `MemoryFinder<TTag>` — StorageAdapter を使ってインメモリで条件を評価する `FinderImplement` 実装      |
+| `src/finder/memory-finder.spec.ts` | `MemoryFinder` 統合テスト（has / and / or / not / 入れ子）                                           |
+| `src/api/server.ts`                | `Server<TTag>` インターフェース + `createServer`（全8操作）                                          |
+| `src/api/server.spec.ts`           | Server 統合テスト（フック動作・TagImplement拡張含む）                                                |
+| `src/security/permission.ts`       | `Permission` / `PermissionManifest` / `PermissionDeniedError` / `hasPermission` / `assertPermission` |
+| `src/security/permission.spec.ts`  | permission ユニットテスト                                                                            |
+| `src/security/context.ts`          | `SecurityContext` インターフェース + `createSecurityContext`（freeze済み）                           |
+| `src/security/context.spec.ts`     | SecurityContext ユニットテスト                                                                       |
+| `src/index.ts`                     | 公開エントリーポイント（上記すべてをre-export）                                                      |
 
 ### 未実装（次に着手）
 
-1. **`src/security/permission.ts`** — Permissionマニフェスト・実行時ガード
-2. **`src/security/context.ts`** — `ctx` オブジェクト（freeze済み）
-3. **ID生成プラグイン（`TagIdPlugin`）** — `generate()` / `serialize()` / `deserialize()` 構成（設計中）
-4. **Finderプラグインのクエリ型確定** — Condition ASTを定義してStorageAdapterに渡す方式（設計中）
-5. **Custom APIプラグイン** — `createServer` の返り値型にプラグインのAPI型をマージ（型レベルマージが複雑、設計中）
+1. **Custom APIプラグイン** — `createServer` の返り値型にプラグインのAPI型をマージ（型レベルマージが複雑、設計中）
 
 ---
 
 ## 未確定事項（設計中）
 
-- **Finderプラグインのクエリ型** — Conditionクラスを定義してASTを構築し、Storage Adapterに渡す方式を検討中。現在は `query: unknown` でプレースホルダー
 - **Custom APIプラグインのジェネリクス推論** — `createServer` の返り値型にプラグインのAPI型をマージする実装方針（TypeScriptの型レベルマージが複雑）
 - **`removeTag`時のシステムタグ付与** — afterRemoveTag フック経由でプラグインが実装する方針（API内蔵しない）
 - **タグの使用回数カウント（usage count）** — コアに持つか、Storage Adapterの集計クエリとして提供するか（どちらにせよプラグインで提供する方向）
-- **ID生成プラグイン（`TagIdPlugin`）のインターフェース定義** — `generate()` / `serialize()` / `deserialize()` の3メソッド構成、`TId extends string` のときシリアライザ省略可能な設計を検討中

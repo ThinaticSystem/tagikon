@@ -1,3 +1,6 @@
+import type { Tag } from "../core/tag.ts";
+import type { TagIdPlugin } from "../plugin/tag-id-plugin.ts";
+
 import { expect, suite, test } from "vitest";
 
 import { TagAlreadyExistsError, TagNotFoundError } from "../core/errors.ts";
@@ -110,6 +113,40 @@ suite("MemoryStorageAdapter", () => {
 			const objects = await adapter.listTagObjects(tag.id);
 			expect(objects).not.toContain(ok("b"));
 			expect(objects).toContain(ok("a"));
+		});
+	});
+
+	suite("custom idPlugin", () => {
+		test("uses the provided generator for new tag ids", async () => {
+			let counter = 0;
+			const numericPlugin: TagIdPlugin<number> = {
+				generate: () => ++counter,
+				serialize: (id) => String(id),
+				deserialize: (raw) => Number(raw),
+			};
+			const adapter = new MemoryStorageAdapter<Tag<"user" | "system", number>>({
+				idPlugin: numericPlugin,
+			});
+			const tag = await adapter.createTag({ name: "counted", kind: TAG_KIND.USER });
+			expect(tag.id).toBe(1);
+			expect(typeof tag.id).toBe("number");
+		});
+
+		test("serialize/deserialize roundtrip for listObjectTags", async () => {
+			let counter = 0;
+			const numericPlugin: TagIdPlugin<number> = {
+				generate: () => ++counter,
+				serialize: (id) => String(id),
+				deserialize: (raw) => Number(raw),
+			};
+			const adapter = new MemoryStorageAdapter<Tag<"user" | "system", number>>({
+				idPlugin: numericPlugin,
+			});
+			const tag = await adapter.createTag({ name: "num", kind: TAG_KIND.USER });
+			await adapter.addRelations(tag.id, [ok("obj1")]);
+			const tagIds = await adapter.listObjectTags(ok("obj1"));
+			expect(tagIds).toEqual([tag.id]);
+			expect(typeof tagIds[0]).toBe("number");
 		});
 	});
 });
