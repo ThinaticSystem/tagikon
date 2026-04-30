@@ -156,7 +156,7 @@ src/
   core/
     ids.ts               # TagId / ObjectKey branded types + factory functions
     tag-kind.ts          # TAG_KIND 定数 + TagKind 型
-    tag.ts               # Tag インターフェース（最小: id / name / kind）+ KindOf / IdOf
+    tag.ts               # Tag インターフェース（最小: id のみ）+ IdOf
     relation.ts          # TagRelation インターフェース
     errors.ts            # ドメインエラークラス（TagikonError 基底）
   api/
@@ -209,7 +209,7 @@ src/
 | `EventHook`       | 操作前後のフック登録                                           |
 | `CustomAPI`       | API追加（登録時にジェネリクスで型推論）                        |
 
-`TagImplement` プラグインはコア `Tag`（id / name）を intersection で拡張する。
+`TagImplement` プラグインはコア `Tag`（id のみ）を intersection で拡張する。
 StorageAdapter / Server API は `TTag extends Tag` のジェネリクスで拡張型を伝播させる。
 
 ```typescript
@@ -218,7 +218,7 @@ interface TagWithDescription extends Tag {
 	readonly description: string;
 }
 const server = createServer<TagWithDescription>({ storage: new MyAdapter() });
-const tag = await server.addTag("foo"); // tag は TagWithDescription として型付け
+const tag = await server.addTag({ description: "foo" }); // tag は TagWithDescription として型付け
 ```
 
 Custom APIプラグインはコンテキスト(`ctx`)を受け取れる。`ctx`は`Object.freeze()`済みで書き換え不可。
@@ -241,9 +241,9 @@ Custom APIプラグインはコンテキスト(`ctx`)を受け取れる。`ctx`�
 
 | API                       | 説明                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------ |
-| `addTag(name, options?)`  | タグ追加                                                                                   |
+| `addTag(attributes)`      | タグ追加（`id` を除く全属性を渡す。プラグインの transform フックで属性を補完・上書き可能） |
 | `listTags()`              | タグのフラットリストを取得（階層構造はHierarchyPluginが提供）                              |
-| `editTag(id, patch)`      | タグ情報の編集（name。追加属性はプラグインが提供。階層変更はHierarchyPlugin経由）          |
+| `editTag(id, patch)`      | タグ情報の編集（追加属性はプラグインが提供。階層変更はHierarchyPlugin経由）                |
 | `removeTag(id, options?)` | タグ削除（プラグイン機能として削除時に対象オブジェクトへシステムタグ付与フックを呼び出す） |
 
 ### オブジェクト操作
@@ -273,14 +273,13 @@ Custom APIプラグインはコンテキスト(`ctx`)を受け取れる。`ctx`�
 
 ### Tag（最小エンティティ）
 
-`Tag<TId>` は `id / name` のみを持つ。`kind` などの追加属性はすべて `TagImplement` プラグインが intersection で提供する。
+`Tag<TId>` は `id` のみを持つ。`name` を含むすべての属性はすべて `TagImplement` プラグインまたは利用者が intersection で提供する。
 
 ```typescript
 // TId — IDの型。デフォルトは unknown（最大寛容）。
 // 制約サイトは T extends Tag と書けば十分。具体的なコードは Tag<TagId> を明示する。
 interface Tag<TId = unknown> {
 	readonly id: TId;
-	readonly name: string;
 }
 
 // ユーティリティ型（型パラメータ名は T prefix を使用）
@@ -290,11 +289,15 @@ type IdOf<TTag extends Tag> = TTag extends Tag<infer TId> ? TId : never;
 `TTag extends Tag` として伝播させることで、StorageAdapter / Server API の各メソッドが `id` の型を正しく制約できる。
 
 ```typescript
-// 例: プラグインが kind と description を追加する
-type MyTag = Tag<TagId> & { readonly kind: "user" | "system"; readonly description: string };
+// 例: name / kind / description を持つタグ
+type MyTag = Tag<TagId> & {
+	readonly name: string;
+	readonly kind: "user" | "system";
+	readonly description: string;
+};
 
 const server = createServer<MyTag>({ storage: new MyAdapter() });
-await server.addTag("foo"); // transform フックで kind 等を注入
+await server.addTag({ name: "foo", kind: "user", description: "" }); // transform フックで属性を補完可能
 ```
 
 ### TagId / ObjectKey（Branded Types）
@@ -328,7 +331,6 @@ TagikonError (基底)
 ```typescript
 // 無引数インスタンス化が型安全になるよう concrete default を明示する
 interface StorageAdapter<TTag extends Tag = Tag<TagId>> {
-	// name重複はcreateTag内で検出しTagAlreadyExistsErrorを投げる（アダプターの責務）
 	createTag(data: Omit<TTag, "id">): Promise<TTag>;
 	getTag(id: IdOf<TTag>): Promise<null | TTag>;
 	listTags(): Promise<TTag[]>;
@@ -345,7 +347,7 @@ interface StorageAdapter<TTag extends Tag = Tag<TagId>> {
 
 **設計上の決定事項:**
 
-- `findTagByName` はインターフェースに含めない。name一意性チェックは `createTag` 実装の責務
+- `name` はコアに含めない。利用者がコアを `TagWithName` で intersection 拡張して使う
 - `TId` は独立した型パラメータとせず `IdOf<T>` をインラインで使用（常に `IdOf<T>` と等価のため）
 - ID生成はアダプターが内部で行う（ID生成プラグインをアダプターのコンストラクタに注入する方式）
 
@@ -395,7 +397,7 @@ pnpm check         # CI相当の全チェック
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `src/core/ids.ts`                  | `TagId` / `ObjectKey` branded types + factory                                                                                |
 | `src/core/tag-kind.ts`             | `TAG_KIND` 定数 + `TagKind` 型（コア非公開・プラグイン向けユーティリティ）                                                   |
-| `src/core/tag.ts`                  | `Tag<TId>` (default: unknown) + `IdOf<TTag>`（`kind` はコアから除外）                                                        |
+| `src/core/tag.ts`                  | `Tag<TId>` (default: unknown) + `IdOf<TTag>`（`name` / `kind` はコアから除外。`id` のみ）                                    |
 | `src/core/relation.ts`             | `TagRelation` インターフェース                                                                                               |
 | `src/core/errors.ts`               | `TagikonError` / `TagNotFoundError` / `TagAlreadyExistsError` / `ObjectNotTaggedError`                                       |
 | `src/storage/adapter.ts`           | `StorageAdapter<TTag>` インターフェース（default: `Tag<TagId>`）                                                             |

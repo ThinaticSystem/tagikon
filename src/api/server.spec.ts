@@ -3,64 +3,63 @@ import type { TagikonPlugin } from "../plugin/types.ts";
 
 import { expect, suite, test, vi } from "vitest";
 
-import { TagAlreadyExistsError, TagNotFoundError } from "../core/errors.ts";
+import { TagNotFoundError } from "../core/errors.ts";
 import { objectKey } from "../core/ids.ts";
 import { use } from "../plugin/use.ts";
 import { MemoryStorageAdapter } from "../storage/memory.ts";
 import { createServer } from "./server.ts";
 
-function makeServer() {
-	const storage = new MemoryStorageAdapter();
-	const server = createServer({ storage });
-	return { server, storage };
+interface TagWithLabel extends Tag {
+	readonly label: string;
 }
+
+const makeServer = () => {
+	const storage = new MemoryStorageAdapter<TagWithLabel>();
+	const server = createServer<TagWithLabel>({ storage });
+	return { server, storage };
+};
 
 suite("Server", () => {
 	suite("addTag", () => {
-		test("creates a tag with the given name", async () => {
+		test("creates a tag with the given attributes", async () => {
 			const { server } = makeServer();
-			const tag = await server.addTag("work");
-			expect(tag.name).toBe("work");
-		});
-
-		test("throws TagAlreadyExistsError on duplicate name", async () => {
-			const { server } = makeServer();
-			await server.addTag("dup");
-			await expect(server.addTag("dup")).rejects.toBeInstanceOf(TagAlreadyExistsError);
+			const tag = await server.addTag({ label: "work" });
+			expect(tag.label).toBe("work");
+			expect(tag.id).toBeDefined();
 		});
 	});
 
 	suite("listTags", () => {
 		test("returns all tags", async () => {
 			const { server } = makeServer();
-			await server.addTag("a");
-			await server.addTag("b");
+			await server.addTag({ label: "a" });
+			await server.addTag({ label: "b" });
 			const tags = await server.listTags();
 			expect(tags).toHaveLength(2);
 		});
 	});
 
 	suite("editTag", () => {
-		test("updates the tag name", async () => {
+		test("updates the tag attributes", async () => {
 			const { server } = makeServer();
-			const tag = await server.addTag("old");
-			const updated = await server.editTag(tag.id, { name: "new" });
-			expect(updated.name).toBe("new");
+			const tag = await server.addTag({ label: "old" });
+			const updated = await server.editTag(tag.id, { label: "new" });
+			expect(updated.label).toBe("new");
 		});
 
 		test("throws TagNotFoundError for unknown id", async () => {
 			const { server } = makeServer();
-			const tag = await server.addTag("tmp");
+			const tag = await server.addTag({ label: "tmp" });
 			await server.deleteTag(tag.id);
 
-			await expect(server.editTag(tag.id, { name: "x" })).rejects.toBeInstanceOf(TagNotFoundError);
+			await expect(server.editTag(tag.id, { label: "x" })).rejects.toBeInstanceOf(TagNotFoundError);
 		});
 	});
 
 	suite("deleteTag", () => {
 		test("deletes a tag", async () => {
 			const { server } = makeServer();
-			const tag = await server.addTag("bye");
+			const tag = await server.addTag({ label: "bye" });
 			const result = await server.deleteTag(tag.id);
 
 			expect(result).toBe(true);
@@ -69,7 +68,7 @@ suite("Server", () => {
 
 		test("returns false for unknown id", async () => {
 			const { server } = makeServer();
-			const tag = await server.addTag("tmp");
+			const tag = await server.addTag({ label: "tmp" });
 			const result1 = await server.deleteTag(tag.id);
 			expect(result1).toBe(true);
 
@@ -81,7 +80,7 @@ suite("Server", () => {
 	suite("tagObjects / untagObjects", () => {
 		test("tags and untags objects", async () => {
 			const { server, storage } = makeServer();
-			const tag = await server.addTag("photos");
+			const tag = await server.addTag({ label: "photos" });
 			await server.tagObjects(tag.id, [objectKey("img1"), objectKey("img2")]);
 			expect(await storage.listTagObjects(tag.id)).toHaveLength(2);
 
@@ -93,9 +92,9 @@ suite("Server", () => {
 	suite("resetWithTags", () => {
 		test("replaces object tags with the given set", async () => {
 			const { server, storage } = makeServer();
-			const t1 = await server.addTag("t1");
-			const t2 = await server.addTag("t2");
-			const t3 = await server.addTag("t3");
+			const t1 = await server.addTag({ label: "t1" });
+			const t2 = await server.addTag({ label: "t2" });
+			const t3 = await server.addTag({ label: "t3" });
 
 			await server.tagObjects(t1.id, [objectKey("file")]);
 			await server.tagObjects(t2.id, [objectKey("file")]);
@@ -113,43 +112,43 @@ suite("Server", () => {
 	suite("hooks", () => {
 		test("tapRaw is called before transform with the original input", async () => {
 			const tapRaw = vi.fn();
-			const storage = new MemoryStorageAdapter();
+			const storage = new MemoryStorageAdapter<TagWithLabel>();
 			const server = createServer({
 				storage,
-				plugins: [use({ hooks: { addTag: { tapRaw } } })],
+				plugins: [use<TagWithLabel>({ hooks: { addTag: { tapRaw } } })],
 			});
-			await server.addTag("observe");
-			expect(tapRaw).toHaveBeenCalledWith(expect.objectContaining({ name: "observe" }));
+			await server.addTag({ label: "observe" });
+			expect(tapRaw).toHaveBeenCalledWith(expect.objectContaining({ label: "observe" }));
 		});
 
 		test("transform can mutate the input before storage write", async () => {
-			const storage = new MemoryStorageAdapter();
+			const storage = new MemoryStorageAdapter<TagWithLabel>();
 			const server = createServer({
 				storage,
 				plugins: [
-					use({
+					use<TagWithLabel>({
 						hooks: {
 							addTag: {
 								transform(input) {
-									return { ...input, name: input.name.toUpperCase() };
+									return { ...input, label: input.label.toUpperCase() };
 								},
 							},
 						},
 					}),
 				],
 			});
-			const tag = await server.addTag("hello");
-			expect(tag.name).toBe("HELLO");
+			const tag = await server.addTag({ label: "hello" });
+			expect(tag.label).toBe("HELLO");
 		});
 
 		test("after hook receives the transformed input and created tag", async () => {
 			const after = vi.fn();
-			const storage = new MemoryStorageAdapter();
+			const storage = new MemoryStorageAdapter<TagWithLabel>();
 			const server = createServer({
 				storage,
-				plugins: [use({ hooks: { addTag: { after } } })],
+				plugins: [use<TagWithLabel>({ hooks: { addTag: { after } } })],
 			});
-			const tag = await server.addTag("hook-test");
+			const tag = await server.addTag({ label: "hook-test" });
 			expect(after).toHaveBeenCalledWith(expect.anything(), tag);
 		});
 	});
@@ -187,8 +186,8 @@ suite("Server", () => {
 				storage,
 				plugins: [use(plugin, { permissions: ["tag:read"] })],
 			});
-			await server.addTag("a");
-			await server.addTag("b");
+			await server.addTag({});
+			await server.addTag({});
 			expect(await server[MY_PLUGIN_NS].countTags()).toBe(2);
 		});
 	});
@@ -214,7 +213,7 @@ suite("Server", () => {
 					}),
 				],
 			});
-			const tag = await server.addTag("extended", { description: "hello" });
+			const tag = await server.addTag({ description: "hello" });
 			expect(tag.description).toBe("hello");
 		});
 	});

@@ -27,7 +27,7 @@ type MergeApis<TRegistrations extends readonly unknown[]> = UnionToIntersection<
 // #endregion
 
 export interface Server<TTag extends Tag> {
-	addTag(name: string, options?: Partial<Omit<TTag, "id" | "name">>): Promise<TTag>;
+	addTag(attributes: Omit<TTag, "id">): Promise<TTag>;
 	listTags(): Promise<TTag[]>;
 	editTag(id: IdOf<TTag>, patch: Partial<Omit<TTag, "id">>): Promise<TTag>;
 	deleteTag(id: IdOf<TTag>): Promise<boolean>;
@@ -70,9 +70,8 @@ export const createServer = <
 	const finder = plugins.find((p) => p.finder)?.finder;
 
 	const server: Server<TTag> = {
-		async addTag(name, opts) {
-			const rawInput = { name, ...opts } as unknown as Omit<TTag, "id">;
-			return runPipeline(addTagHooks, rawInput, (data) => storage.createTag(data));
+		async addTag(attributes) {
+			return runPipeline(addTagHooks, attributes, (data) => storage.createTag(data));
 		},
 
 		async listTags() {

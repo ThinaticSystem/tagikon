@@ -3,34 +3,30 @@ import type { TagIdPlugin } from "../plugin/tag-id-plugin.ts";
 
 import { expect, suite, test } from "vitest";
 
-import { TagAlreadyExistsError, TagNotFoundError } from "../core/errors.ts";
+import { TagNotFoundError } from "../core/errors.ts";
 import { objectKey, tagId } from "../core/ids.ts";
 import { MemoryStorageAdapter } from "./memory.ts";
+
+interface TagWithName extends Tag {
+	readonly name: string;
+}
 
 const ok = (s: string) => objectKey(s);
 
 suite("MemoryStorageAdapter", () => {
 	suite("createTag", () => {
 		test("creates a tag and assigns an id", async () => {
-			const adapter = new MemoryStorageAdapter();
+			const adapter = new MemoryStorageAdapter<TagWithName>();
 			const tag = await adapter.createTag({ name: "work" });
 			expect(tag.name).toBe("work");
 			expect(typeof tag.id).toBe("string");
-		});
-
-		test("throws TagAlreadyExistsError on duplicate name", async () => {
-			const adapter = new MemoryStorageAdapter();
-			await adapter.createTag({ name: "work" });
-			await expect(adapter.createTag({ name: "work" })).rejects.toBeInstanceOf(
-				TagAlreadyExistsError,
-			);
 		});
 	});
 
 	suite("getTag", () => {
 		test("returns the tag by id", async () => {
 			const adapter = new MemoryStorageAdapter();
-			const created = await adapter.createTag({ name: "home" });
+			const created = await adapter.createTag({});
 			const found = await adapter.getTag(created.id);
 			expect(found).toEqual(created);
 		});
@@ -45,8 +41,8 @@ suite("MemoryStorageAdapter", () => {
 	suite("listTags", () => {
 		test("returns all created tags", async () => {
 			const adapter = new MemoryStorageAdapter();
-			await adapter.createTag({ name: "a" });
-			await adapter.createTag({ name: "b" });
+			await adapter.createTag({});
+			await adapter.createTag({});
 			const all = await adapter.listTags();
 			expect(all).toHaveLength(2);
 		});
@@ -54,7 +50,7 @@ suite("MemoryStorageAdapter", () => {
 
 	suite("updateTag", () => {
 		test("updates tag fields", async () => {
-			const adapter = new MemoryStorageAdapter();
+			const adapter = new MemoryStorageAdapter<TagWithName>();
 			const tag = await adapter.createTag({ name: "old" });
 			const updated = await adapter.updateTag(tag.id, { name: "new" });
 			expect(updated.name).toBe("new");
@@ -62,16 +58,14 @@ suite("MemoryStorageAdapter", () => {
 
 		test("throws TagNotFoundError for unknown id", async () => {
 			const adapter = new MemoryStorageAdapter();
-			await expect(adapter.updateTag(tagId("ghost"), { name: "x" })).rejects.toBeInstanceOf(
-				TagNotFoundError,
-			);
+			await expect(adapter.updateTag(tagId("ghost"), {})).rejects.toBeInstanceOf(TagNotFoundError);
 		});
 	});
 
 	suite("deleteTag", () => {
 		test("returns true when tag existed", async () => {
 			const adapter = new MemoryStorageAdapter();
-			const tag = await adapter.createTag({ name: "tmp" });
+			const tag = await adapter.createTag({});
 			expect(await adapter.deleteTag(tag.id)).toBe(true);
 		});
 
@@ -82,7 +76,7 @@ suite("MemoryStorageAdapter", () => {
 
 		test("cleans up relations on delete", async () => {
 			const adapter = new MemoryStorageAdapter();
-			const tag = await adapter.createTag({ name: "x" });
+			const tag = await adapter.createTag({});
 			await adapter.addRelations(tag.id, [ok("file1")]);
 			await adapter.deleteTag(tag.id);
 			const tags = await adapter.listObjectTags(ok("file1"));
@@ -93,7 +87,7 @@ suite("MemoryStorageAdapter", () => {
 	suite("relations", () => {
 		test("addRelations / listTagObjects / listObjectTags", async () => {
 			const adapter = new MemoryStorageAdapter();
-			const tag = await adapter.createTag({ name: "photos" });
+			const tag = await adapter.createTag({});
 			await adapter.addRelations(tag.id, [ok("img1"), ok("img2")]);
 
 			expect(await adapter.listTagObjects(tag.id)).toEqual(
@@ -104,7 +98,7 @@ suite("MemoryStorageAdapter", () => {
 
 		test("removeRelations removes only specified keys", async () => {
 			const adapter = new MemoryStorageAdapter();
-			const tag = await adapter.createTag({ name: "docs" });
+			const tag = await adapter.createTag({});
 			await adapter.addRelations(tag.id, [ok("a"), ok("b"), ok("c")]);
 			await adapter.removeRelations(tag.id, [ok("b")]);
 			const objects = await adapter.listTagObjects(tag.id);
@@ -124,7 +118,7 @@ suite("MemoryStorageAdapter", () => {
 			const adapter = new MemoryStorageAdapter<Tag<number>>({
 				idPlugin: numericPlugin,
 			});
-			const tag = await adapter.createTag({ name: "counted" });
+			const tag = await adapter.createTag({});
 			expect(tag.id).toBe(1);
 			expect(typeof tag.id).toBe("number");
 		});
@@ -139,7 +133,7 @@ suite("MemoryStorageAdapter", () => {
 			const adapter = new MemoryStorageAdapter<Tag<number>>({
 				idPlugin: numericPlugin,
 			});
-			const tag = await adapter.createTag({ name: "num" });
+			const tag = await adapter.createTag({});
 			await adapter.addRelations(tag.id, [ok("obj1")]);
 			const tagIds = await adapter.listObjectTags(ok("obj1"));
 			expect(tagIds).toEqual([tag.id]);

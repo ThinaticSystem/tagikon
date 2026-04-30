@@ -3,7 +3,7 @@ import type { IdOf, Tag } from "../core/tag.ts";
 import type { TagIdPlugin } from "../plugin/tag-id-plugin.ts";
 import type { StorageAdapter } from "./adapter.ts";
 
-import { TagAlreadyExistsError, TagNotFoundError } from "../core/errors.ts";
+import { TagNotFoundError } from "../core/errors.ts";
 import { UUID_TAG_ID_PLUGIN } from "../plugin/tag-id-plugin.ts";
 
 export class MemoryStorageAdapter<TTag extends Tag = Tag<TagId>> implements StorageAdapter<TTag> {
@@ -21,9 +21,6 @@ export class MemoryStorageAdapter<TTag extends Tag = Tag<TagId>> implements Stor
 	}
 
 	async createTag(data: Omit<TTag, "id">): Promise<TTag> {
-		if (this.#tags.values().find(({ name }) => name === data.name))
-			throw new TagAlreadyExistsError(data.name);
-
 		const id = this.#idPlugin.generate();
 		const tag = { ...data, id } as TTag;
 

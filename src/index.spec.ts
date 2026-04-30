@@ -3,25 +3,28 @@ import type { ApiShape, Tag, TagikonPlugin } from "./index.ts";
 import { expect, suite, test } from "vitest";
 
 import {
-	MemoryFinder,
-	MemoryStorageAdapter,
-	TagAlreadyExistsError,
-	TagikonError,
 	and,
 	createServer,
 	has,
+	MemoryFinder,
+	MemoryStorageAdapter,
 	not,
 	objectKey,
+	TagikonError,
 	use,
 } from "./index.ts";
+
+interface TagWithName extends Tag {
+	readonly name: string;
+}
 
 suite("Public API", () => {
 	suite("core workflow", () => {
 		test("creates and lists tags", async () => {
-			const server = createServer({ storage: new MemoryStorageAdapter() });
+			const server = createServer({ storage: new MemoryStorageAdapter<TagWithName>() });
 
-			const work = await server.addTag("work");
-			const personal = await server.addTag("personal");
+			const work = await server.addTag({ name: "work" });
+			const personal = await server.addTag({ name: "personal" });
 
 			expect(work.name).toBe("work");
 			expect(personal.name).toBe("personal");
@@ -29,17 +32,10 @@ suite("Public API", () => {
 			expect(await server.listTags()).toHaveLength(2);
 		});
 
-		test("TagAlreadyExistsError on duplicate name", async () => {
-			const server = createServer({ storage: new MemoryStorageAdapter() });
-
-			await server.addTag("dup");
-			await expect(server.addTag("dup")).rejects.toBeInstanceOf(TagAlreadyExistsError);
-		});
-
 		test("returns false on delete of nonexistent tag", async () => {
-			const server = createServer({ storage: new MemoryStorageAdapter() });
+			const server = createServer({ storage: new MemoryStorageAdapter<TagWithName>() });
 
-			const tag = await server.addTag("tmp");
+			const tag = await server.addTag({ name: "tmp" });
 
 			// Delete existing tag
 			const isDeleted = await server.deleteTag(tag.id);
@@ -53,8 +49,10 @@ suite("Public API", () => {
 		test("library errors are instanceof TagikonError", async () => {
 			const server = createServer({ storage: new MemoryStorageAdapter() });
 
-			await server.addTag("x");
-			await expect(server.addTag("x")).rejects.toBeInstanceOf(TagikonError);
+			const tag = await server.addTag({});
+			await server.deleteTag(tag.id);
+
+			await expect(server.editTag(tag.id, { name: "y" })).rejects.toBeInstanceOf(TagikonError);
 		});
 	});
 
@@ -65,8 +63,8 @@ suite("Public API", () => {
 		 * - doc3: personal
 		 */
 		const setupFindScenario = async () => {
-			const storage = new MemoryStorageAdapter();
-			const plugin: TagikonPlugin<Tag> = {
+			const storage = new MemoryStorageAdapter<TagWithName>();
+			const plugin: TagikonPlugin<TagWithName> = {
 				finder: new MemoryFinder(),
 			};
 			const server = createServer({
@@ -74,9 +72,9 @@ suite("Public API", () => {
 				plugins: [use(plugin)],
 			});
 
-			const work = await server.addTag("work");
-			const personal = await server.addTag("personal");
-			const urgent = await server.addTag("urgent");
+			const work = await server.addTag({ name: "work" });
+			const personal = await server.addTag({ name: "personal" });
+			const urgent = await server.addTag({ name: "urgent" });
 
 			await server.tagObjects(work.id, [objectKey("doc1"), objectKey("doc2")]);
 			await server.tagObjects(personal.id, [objectKey("doc2"), objectKey("doc3")]);
@@ -129,7 +127,7 @@ suite("Public API", () => {
 					}),
 				],
 			});
-			const tag = await server.addTag("meeting", { note: "important" });
+			const tag = await server.addTag({ note: "important" });
 			expect(tag.note).toBe("important");
 		});
 	});
@@ -161,8 +159,8 @@ suite("Public API", () => {
 					}),
 				],
 			});
-			await server.addTag("a");
-			await server.addTag("b");
+			await server.addTag({});
+			await server.addTag({});
 			expect(await server[STATS_NS].tagCount()).toBe(2);
 		});
 	});
