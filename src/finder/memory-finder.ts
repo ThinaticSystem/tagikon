@@ -12,6 +12,31 @@ const evalCondition = async <TTag extends Tag>(
 		case "has":
 			return storage.listTagObjects(condition.tagId);
 
+		case "tag-property": {
+			const allTags = await storage.listTags();
+			const matchingTagIds = allTags
+				.filter(
+					(tag) =>
+						(tag as unknown as Record<string, unknown>)[condition.property] === condition.value,
+				)
+				.map((tag) => tag.id as IdOf<TTag>);
+			const resultArrays = await Promise.all(
+				matchingTagIds.map((tagId) => storage.listTagObjects(tagId)),
+			);
+			const seen = new Set<string>();
+			const out: ObjectKey[] = [];
+			for (const batch of resultArrays) {
+				for (const objectKey of batch) {
+					const str = objectKey as string;
+					if (!seen.has(str)) {
+						seen.add(str);
+						out.push(objectKey);
+					}
+				}
+			}
+			return out;
+		}
+
 		case "and": {
 			const resultArrays = await Promise.all(
 				condition.conditions.map((condition) => evalCondition(condition, storage)),

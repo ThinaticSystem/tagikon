@@ -6,6 +6,7 @@ interface HookList<TInput, TTransformed, TOutput> {
 	tapRaw: TapRawFn<TInput>[];
 	transforms: ((input: unknown) => unknown | Promise<unknown>)[];
 	tapTransformed: TapTransformedFn<TTransformed>[];
+	transformOutputs: ((output: unknown) => unknown | Promise<unknown>)[];
 	after: AfterFn<TTransformed, TOutput>[];
 }
 
@@ -16,6 +17,7 @@ export function collectHooks<TInput, TOutput, TTransformed = TInput>(
 		tapRaw: [],
 		transforms: [],
 		tapTransformed: [],
+		transformOutputs: [],
 		after: [],
 	};
 	for (const phase of phases) {
@@ -27,6 +29,10 @@ export function collectHooks<TInput, TOutput, TTransformed = TInput>(
 				phase.transform as unknown as (input: unknown) => unknown | Promise<unknown>,
 			);
 		if (phase.tapTransformed) list.tapTransformed.push(phase.tapTransformed);
+		if (phase.transformOutput)
+			list.transformOutputs.push(
+				phase.transformOutput as unknown as (output: unknown) => unknown | Promise<unknown>,
+			);
 		if (phase.after) list.after.push(phase.after);
 	}
 	return list;
@@ -55,9 +61,16 @@ export async function runPipeline<TInput, TTransformed, TOutput>(
 	}
 
 	// Execute the storage operation
-	const output = await execute(transformed);
+	const rawOutput = await execute(transformed);
 
-	// Phase 4: After — observers of the result
+	// Phase 4: TransformOutput — sequential transformation of the result
+	let currentOutput: unknown = rawOutput;
+	for (const fn of hooks.transformOutputs) {
+		currentOutput = await fn(currentOutput);
+	}
+	const output = currentOutput as TOutput;
+
+	// Phase 5: After — observers of the final result
 	for (const fn of hooks.after) {
 		await fn(transformed, output);
 	}

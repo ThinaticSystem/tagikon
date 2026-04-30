@@ -9,6 +9,8 @@ export type TapTransformedFn<TTransformed> = (
 	input: Readonly<TTransformed>,
 ) => void | Promise<void>;
 
+export type TransformOutputFn<TOutput> = (output: TOutput) => TOutput | Promise<TOutput>;
+
 export type AfterFn<TTransformed, TOutput> = (
 	input: Readonly<TTransformed>,
 	output: TOutput,
@@ -21,5 +23,6 @@ export interface HookPhases<TInput, TOutput, TTransformed = TInput> {
 	tapRaw?: TapRawFn<TInput>;
 	transform?: TransformFn<TInput, TTransformed>;
 	tapTransformed?: TapTransformedFn<TTransformed>;
+	transformOutput?: TransformOutputFn<TOutput>;
 	after?: AfterFn<TTransformed, TOutput>;
 }

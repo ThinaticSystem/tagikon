@@ -2,6 +2,7 @@ import type { TagId } from "../core/ids.ts";
 
 export type TagCondition<TId = TagId> =
 	| HasCondition<TId>
+	| TagPropertyCondition
 	| AndCondition<TId>
 	| OrCondition<TId>
 	| NotCondition<TId>;
@@ -9,6 +10,12 @@ export type TagCondition<TId = TagId> =
 export interface HasCondition<TId> {
 	readonly type: "has";
 	readonly tagId: TId;
+}
+
+export interface TagPropertyCondition {
+	readonly type: "tag-property";
+	readonly property: string;
+	readonly value: unknown;
 }
 
 export interface AndCondition<TId> {
@@ -27,6 +34,12 @@ export interface NotCondition<TId> {
 }
 
 export const has = <TId>(tagId: TId): HasCondition<TId> => ({ type: "has", tagId });
+
+export const tagProperty = (property: string, value: unknown): TagPropertyCondition => ({
+	type: "tag-property",
+	property,
+	value,
+});
 
 export const and = <TId>(conditions: readonly TagCondition<TId>[]): AndCondition<TId> => ({
 	type: "and",

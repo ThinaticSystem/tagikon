@@ -10,18 +10,28 @@ export { objectKey, tagId } from "./core/ids.ts";
 export type { ObjectKey, TagId } from "./core/ids.ts";
 export type { TagRelation } from "./core/relation.ts";
 export type { IdOf, Tag } from "./core/tag.ts";
-export { and, has, not, or } from "./finder/condition.ts";
+export { and, has, not, or, tagProperty } from "./finder/condition.ts";
 export type {
 	AndCondition,
 	HasCondition,
 	NotCondition,
 	OrCondition,
 	TagCondition,
+	TagPropertyCondition,
 } from "./finder/condition.ts";
 export { MemoryFinder } from "./finder/memory-finder.ts";
-export type { AfterFn, HookPhases, TapRawFn, TapTransformedFn, TransformFn } from "./hook/types.ts";
+export type {
+	AfterFn,
+	HookPhases,
+	TapRawFn,
+	TapTransformedFn,
+	TransformFn,
+	TransformOutputFn,
+} from "./hook/types.ts";
 export { createPluginContext } from "./plugin/context.ts";
 export type { PluginContext } from "./plugin/context.ts";
+export { SOFT_DELETE_NS, createSoftDelete } from "./plugin/soft-delete.ts";
+export type { SoftDeleteApi, TagWithSoftDelete } from "./plugin/soft-delete.ts";
 export { UUID_TAG_ID_PLUGIN, stringTagIdPlugin } from "./plugin/tag-id-plugin.ts";
 export type { TagIdPlugin } from "./plugin/tag-id-plugin.ts";
 export type {
