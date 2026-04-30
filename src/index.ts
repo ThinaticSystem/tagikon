@@ -28,28 +28,32 @@ export type {
 	TransformFn,
 	TransformOutputFn,
 } from "./hook/types.ts";
-export { createPluginContext } from "./plugin/context.ts";
-export type { PluginContext } from "./plugin/context.ts";
-export { SOFT_DELETE_NS, createSoftDelete } from "./plugin/soft-delete.ts";
-export type { SoftDeleteApi, TagWithSoftDelete } from "./plugin/soft-delete.ts";
-export { UUID_TAG_ID_PLUGIN, stringTagIdPlugin } from "./plugin/tag-id-plugin.ts";
-export type { TagIdPlugin } from "./plugin/tag-id-plugin.ts";
+export { createExtensionContext } from "./plugin/extension/context.ts";
+export type { ExtensionContext } from "./plugin/extension/context.ts";
 export type {
 	AddTagInput,
 	ApiShape,
 	EditTagInput,
+	Extension,
 	FindObjectsByTagsInput,
 	FinderImplement,
 	ListTagsInput,
 	RemoveTagInput,
 	ResetWithTagsInput,
 	TagObjectsInput,
-	TagikonPlugin,
 	UntagObjectsInput,
-} from "./plugin/types.ts";
-export { use } from "./plugin/use.ts";
-export type { PluginRegistration } from "./plugin/use.ts";
+} from "./plugin/extension/types.ts";
+export { use } from "./plugin/extension/use.ts";
+export type { ExtensionRegistration } from "./plugin/extension/use.ts";
+export type { IdProvider } from "./plugin/id-provider/types.ts";
+export type { StorageAdapter } from "./plugin/storage-adapter/types.ts";
+export { createDefaultAttributes } from "./plugins/extensions/default-attributes/index.ts";
+export type { AttributeProviders } from "./plugins/extensions/default-attributes/index.ts";
+export { SOFT_DELETE_NS, createSoftDelete } from "./plugins/extensions/soft-delete/index.ts";
+export type { SoftDeleteApi, TagWithSoftDelete } from "./plugins/extensions/soft-delete/index.ts";
+export * as idProviders from "./plugins/id-providers/index.ts";
+export { stringIdProvider } from "./plugins/id-providers/string-id-provider/index.ts";
+export { UUID_ID_PROVIDER } from "./plugins/id-providers/uuid-id-provider/index.ts";
+export { MapStorageAdapter } from "./plugins/storage-adapters/map-storage-adapter/index.ts";
 export { PermissionMismatchError } from "./security/permission.ts";
 export type { Permission, PermissionManifest } from "./security/permission.ts";
-export type { StorageAdapter } from "./storage/adapter.ts";
-export { MemoryStorageAdapter } from "./storage/memory.ts";

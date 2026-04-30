@@ -3,7 +3,7 @@ import type { ObjectKey } from "../core/ids.ts";
 import { expect, suite, test } from "vitest";
 
 import { objectKey } from "../core/ids.ts";
-import { MemoryStorageAdapter } from "../storage/memory.ts";
+import { MapStorageAdapter } from "../plugins/storage-adapters/map-storage-adapter/index.ts";
 import { and, has, not, or } from "./condition.ts";
 import { MemoryFinder } from "./memory-finder.ts";
 
@@ -24,7 +24,7 @@ const assertContainsAll = (actual: Iterable<ObjectKey>, expected: Iterable<Objec
  * - obj3: tag-a
  */
 async function setup() {
-	const storage = new MemoryStorageAdapter();
+	const storage = new MapStorageAdapter();
 
 	const tags = {
 		a: await storage.createTag({ name: "a" }),

@@ -1,7 +1,7 @@
 import type { ObjectKey, TagId } from "../core/ids.ts";
 import type { IdOf, Tag } from "../core/tag.ts";
-import type { FinderImplement } from "../plugin/types.ts";
-import type { StorageAdapter } from "../storage/adapter.ts";
+import type { FinderImplement } from "../plugin/extension/types.ts";
+import type { StorageAdapter } from "../plugin/storage-adapter/types.ts";
 import type { TagCondition } from "./condition.ts";
 
 const evalCondition = async <TTag extends Tag>(

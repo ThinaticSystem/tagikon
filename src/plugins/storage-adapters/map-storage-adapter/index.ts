@@ -1,23 +1,22 @@
-import type { ObjectKey, TagId } from "../core/ids.ts";
-import type { IdOf, Tag } from "../core/tag.ts";
-import type { TagIdPlugin } from "../plugin/tag-id-plugin.ts";
-import type { StorageAdapter } from "./adapter.ts";
+import type { ObjectKey, TagId } from "../../../core/ids.ts";
+import type { IdOf, Tag } from "../../../core/tag.ts";
+import type { IdProvider } from "../../../plugin/id-provider/types.ts";
+import type { StorageAdapter } from "../../../plugin/storage-adapter/types.ts";
 
-import { TagNotFoundError } from "../core/errors.ts";
-import { UUID_TAG_ID_PLUGIN } from "../plugin/tag-id-plugin.ts";
+import { TagNotFoundError } from "../../../core/errors.ts";
+import { UUID_ID_PROVIDER } from "../../id-providers/uuid-id-provider/index.ts";
 
-export class MemoryStorageAdapter<TTag extends Tag = Tag<TagId>> implements StorageAdapter<TTag> {
+export class MapStorageAdapter<TTag extends Tag = Tag<TagId>> implements StorageAdapter<TTag> {
 	// Store tags keyed by their serialized id string for uniform lookup.
 	readonly #tags = new Map<string, TTag>();
 	// tagId string → Set of objectKey strings
 	readonly #tagToObjects = new Map<string, Set<string>>();
 	// objectKey string → Set of tagId strings
 	readonly #objectToTags = new Map<string, Set<string>>();
-	readonly #idPlugin: TagIdPlugin<IdOf<TTag>>;
+	readonly #idPlugin: IdProvider<IdOf<TTag>>;
 
-	constructor(options?: { idPlugin?: TagIdPlugin<IdOf<TTag>> }) {
-		this.#idPlugin =
-			options?.idPlugin ?? (UUID_TAG_ID_PLUGIN as unknown as TagIdPlugin<IdOf<TTag>>);
+	constructor(options?: { idPlugin?: IdProvider<IdOf<TTag>> }) {
+		this.#idPlugin = options?.idPlugin ?? (UUID_ID_PROVIDER as unknown as IdProvider<IdOf<TTag>>);
 	}
 
 	async createTag(data: Omit<TTag, "id">): Promise<TTag> {

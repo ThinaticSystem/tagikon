@@ -1,5 +1,5 @@
-import type { ObjectKey, TagId } from "../core/ids.ts";
-import type { IdOf, Tag } from "../core/tag.ts";
+import type { ObjectKey, TagId } from "../../core/ids.ts";
+import type { IdOf, Tag } from "../../core/tag.ts";
 
 export interface StorageAdapter<TTag extends Tag = Tag<TagId>> {
 	createTag(data: Omit<TTag, "id">): Promise<TTag>;

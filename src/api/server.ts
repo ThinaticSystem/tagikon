@@ -1,13 +1,13 @@
 import type { ObjectKey } from "../core/ids.ts";
 import type { IdOf, Tag } from "../core/tag.ts";
 import type { TagCondition } from "../finder/condition.ts";
-import type { PluginContext } from "../plugin/context.ts";
-import type { ApiShape, TagikonPlugin } from "../plugin/types.ts";
-import type { PluginRegistration } from "../plugin/use.ts";
-import type { StorageAdapter } from "../storage/adapter.ts";
+import type { ExtensionContext } from "../plugin/extension/context.ts";
+import type { ApiShape, Extension } from "../plugin/extension/types.ts";
+import type { ExtensionRegistration } from "../plugin/extension/use.ts";
+import type { StorageAdapter } from "../plugin/storage-adapter/types.ts";
 
 import { collectHooks, runPipeline } from "../hook/runner.ts";
-import { createPluginContext } from "../plugin/context.ts";
+import { createExtensionContext } from "../plugin/extension/context.ts";
 
 //#region Type-level API merging
 type UnionToIntersection<TUnion> = (TUnion extends unknown ? (x: TUnion) => void : never) extends (
@@ -17,7 +17,7 @@ type UnionToIntersection<TUnion> = (TUnion extends unknown ? (x: TUnion) => void
 	: never;
 
 type ApiOf<TRegistration> =
-	TRegistration extends PluginRegistration<infer TNamespace, infer TApi>
+	TRegistration extends ExtensionRegistration<infer TNamespace, infer TApi>
 		? { readonly [TKey in TNamespace]: TApi }
 		: Record<never, never>;
 
@@ -26,6 +26,7 @@ type MergeApis<TRegistrations extends readonly unknown[]> = UnionToIntersection<
 >;
 // #endregion
 
+// TODO: `CoreApi` に改名
 export interface Server<TTag extends Tag> {
 	addTag(attributes: Omit<TTag, "id">): Promise<TTag>;
 	listTags(): Promise<TTag[]>;
@@ -39,35 +40,36 @@ export interface Server<TTag extends Tag> {
 
 export interface ServerOptions<
 	TTag extends Tag,
-	TRegistrations extends readonly PluginRegistration<symbol, ApiShape>[] = readonly [],
+	TRegistrations extends readonly ExtensionRegistration<symbol, ApiShape>[] = readonly [],
 > {
 	storage: StorageAdapter<TTag>;
-	plugins?: TRegistrations;
+	extensions?: TRegistrations;
 }
 
+// TODO: `setupTagikon` に改名
 export const createServer = <
 	TTag extends Tag,
-	TRegistrations extends readonly PluginRegistration<symbol, ApiShape>[] = readonly [],
+	TRegistrations extends readonly ExtensionRegistration<symbol, ApiShape>[] = readonly [],
 >(
 	options: ServerOptions<TTag, TRegistrations>,
 ): Server<TTag> & MergeApis<TRegistrations> => {
-	const { storage, plugins: registrations = [] as unknown as TRegistrations } = options;
+	const { storage, extensions: registrations = [] as unknown as TRegistrations } = options;
 
 	// Cast to TTag: use() verified compatibility at the call site
-	const plugins = registrations.map(
-		(r) => r.plugin as unknown as TagikonPlugin<TTag, symbol, ApiShape>,
+	const extensions = registrations.map(
+		(r) => r.extension as unknown as Extension<TTag, symbol, ApiShape>,
 	);
 
-	const addTagHooks = collectHooks(plugins.map((p) => p.hooks?.addTag));
-	const listTagsHooks = collectHooks(plugins.map((p) => p.hooks?.listTags));
-	const editTagHooks = collectHooks(plugins.map((p) => p.hooks?.editTag));
-	const removeTagHooks = collectHooks(plugins.map((p) => p.hooks?.removeTag));
-	const tagObjectsHooks = collectHooks(plugins.map((p) => p.hooks?.tagObjects));
-	const untagObjectsHooks = collectHooks(plugins.map((p) => p.hooks?.untagObjects));
-	const resetWithTagsHooks = collectHooks(plugins.map((p) => p.hooks?.resetWithTags));
-	const findObjectsByTagsHooks = collectHooks(plugins.map((p) => p.hooks?.findObjectsByTags));
+	const addTagHooks = collectHooks(extensions.map((p) => p.hooks?.addTag));
+	const listTagsHooks = collectHooks(extensions.map((p) => p.hooks?.listTags));
+	const editTagHooks = collectHooks(extensions.map((p) => p.hooks?.editTag));
+	const removeTagHooks = collectHooks(extensions.map((p) => p.hooks?.removeTag));
+	const tagObjectsHooks = collectHooks(extensions.map((p) => p.hooks?.tagObjects));
+	const untagObjectsHooks = collectHooks(extensions.map((p) => p.hooks?.untagObjects));
+	const resetWithTagsHooks = collectHooks(extensions.map((p) => p.hooks?.resetWithTags));
+	const findObjectsByTagsHooks = collectHooks(extensions.map((p) => p.hooks?.findObjectsByTags));
 
-	const finder = plugins.find((p) => p.finder)?.finder;
+	const finder = extensions.find((p) => p.finder)?.finder;
 
 	const server: Server<TTag> = {
 		async addTag(attributes) {
@@ -130,17 +132,18 @@ export const createServer = <
 		},
 	};
 
+	// Register namespaced APIs
 	const namespacedApis: Record<
 		symbol,
 		Record<string, (...args: readonly unknown[]) => unknown>
 	> = {};
 	for (const registration of registrations) {
-		if (!registration.plugin.api || !registration.namespace) continue;
+		if (!registration.extension.api || !registration.namespace) continue;
 
-		const ctx = createPluginContext(storage);
-		const api = registration.plugin.api as Record<
+		const ctx = createExtensionContext(storage);
+		const api = registration.extension.api as Record<
 			string,
-			(ctx: PluginContext<TTag>, ...args: readonly unknown[]) => unknown
+			(ctx: ExtensionContext<TTag>, ...args: readonly unknown[]) => unknown
 		>;
 		const nsApi: Record<string, (...args: readonly unknown[]) => unknown> = {};
 		for (const key of Object.keys(api)) {

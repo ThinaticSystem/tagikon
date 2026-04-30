@@ -1,4 +1,4 @@
-import type { ApiShape, Tag, TagikonPlugin } from "./index.ts";
+import type { ApiShape, Extension, Tag } from "./index.ts";
 
 import { expect, suite, test } from "vitest";
 
@@ -6,8 +6,8 @@ import {
 	and,
 	createServer,
 	has,
+	MapStorageAdapter,
 	MemoryFinder,
-	MemoryStorageAdapter,
 	not,
 	objectKey,
 	TagikonError,
@@ -21,7 +21,7 @@ interface TagWithName extends Tag {
 suite("Public API", () => {
 	suite("core workflow", () => {
 		test("creates and lists tags", async () => {
-			const server = createServer({ storage: new MemoryStorageAdapter<TagWithName>() });
+			const server = createServer({ storage: new MapStorageAdapter<TagWithName>() });
 
 			const work = await server.addTag({ name: "work" });
 			const personal = await server.addTag({ name: "personal" });
@@ -33,7 +33,7 @@ suite("Public API", () => {
 		});
 
 		test("returns false on delete of nonexistent tag", async () => {
-			const server = createServer({ storage: new MemoryStorageAdapter<TagWithName>() });
+			const server = createServer({ storage: new MapStorageAdapter<TagWithName>() });
 
 			const tag = await server.addTag({ name: "tmp" });
 
@@ -47,7 +47,7 @@ suite("Public API", () => {
 		});
 
 		test("library errors are instanceof TagikonError", async () => {
-			const server = createServer({ storage: new MemoryStorageAdapter() });
+			const server = createServer({ storage: new MapStorageAdapter() });
 
 			const tag = await server.addTag({});
 			await server.deleteTag(tag.id);
@@ -63,13 +63,13 @@ suite("Public API", () => {
 		 * - doc3: personal
 		 */
 		const setupFindScenario = async () => {
-			const storage = new MemoryStorageAdapter<TagWithName>();
-			const plugin: TagikonPlugin<TagWithName> = {
+			const storage = new MapStorageAdapter<TagWithName>();
+			const extension: Extension<TagWithName> = {
 				finder: new MemoryFinder(),
 			};
 			const server = createServer({
 				storage,
-				plugins: [use(plugin)],
+				extensions: [use(extension)],
 			});
 
 			const work = await server.addTag({ name: "work" });
@@ -106,16 +106,16 @@ suite("Public API", () => {
 		});
 	});
 
-	suite("TagImplement plugin", () => {
+	suite("TagImplement extension", () => {
 		interface TagWithNote extends Tag {
 			readonly note: string;
 		}
 
 		test("extended tag fields are preserved through addTag", async () => {
-			const storage = new MemoryStorageAdapter<TagWithNote>();
+			const storage = new MapStorageAdapter<TagWithNote>();
 			const server = createServer({
 				storage,
-				plugins: [
+				extensions: [
 					use<TagWithNote>({
 						hooks: {
 							addTag: {
@@ -132,17 +132,17 @@ suite("Public API", () => {
 		});
 	});
 
-	suite("Custom API plugin", () => {
+	suite("Custom API extension", () => {
 		const STATS_NS = Symbol("stats");
 
 		test("exposes custom API on the server within namespace", async () => {
 			interface StatsAPI extends ApiShape {
 				tagCount: () => Promise<number>;
 			}
-			const plugin: TagikonPlugin<Tag, typeof STATS_NS, StatsAPI> = {
+			const extension: Extension<Tag, typeof STATS_NS, StatsAPI> = {
 				namespace: STATS_NS,
-				// Specify permissions the plugin requires to function.
-				// The server will check these against what is granted when registering the plugin, and throw if they are not satisfied.
+				// Specify permissions the extension requires to function.
+				// The server will check these against what is granted when registering the extension, and throw if they are not satisfied.
 				permissions: { permissions: ["tag:read"] },
 				api: {
 					async tagCount(ctx) {
@@ -150,11 +150,11 @@ suite("Public API", () => {
 					},
 				},
 			};
-			const storage = new MemoryStorageAdapter();
+			const storage = new MapStorageAdapter();
 			const server = createServer({
 				storage,
-				plugins: [
-					use(plugin, {
+				extensions: [
+					use(extension, {
 						permissions: ["tag:read"],
 					}),
 				],

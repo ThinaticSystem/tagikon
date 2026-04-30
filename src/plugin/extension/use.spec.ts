@@ -1,65 +1,65 @@
-import type { Tag } from "../core/tag.ts";
-import type { TagikonPlugin } from "./types.ts";
+import type { Tag } from "../../core/tag.ts";
+import type { Extension } from "./types.ts";
 
 import { expect, suite, test } from "vitest";
 
-import { TagikonError } from "../core/errors.ts";
-import { PermissionMismatchError } from "../security/permission.ts";
+import { TagikonError } from "../../core/errors.ts";
+import { PermissionMismatchError } from "../../security/permission.ts";
 import { use } from "./use.ts";
 
 suite("use()", () => {
 	suite("permission matching", () => {
 		test("succeeds when declared and acknowledged permissions match exactly", () => {
-			const plugin: TagikonPlugin<Tag> = {
+			const extension: Extension<Tag> = {
 				permissions: { permissions: ["tag:read", "relation:read"] },
 			};
-			expect(() => use(plugin, { permissions: ["tag:read", "relation:read"] })).not.toThrow();
+			expect(() => use(extension, { permissions: ["tag:read", "relation:read"] })).not.toThrow();
 		});
 
-		test("succeeds when plugin has no permissions and none are acknowledged", () => {
+		test("succeeds when extension has no permissions and none are acknowledged", () => {
 			expect(() => use({})).not.toThrow();
 		});
 
-		test("succeeds when plugin has no permissions and empty array is acknowledged", () => {
+		test("succeeds when extension has no permissions and empty array is acknowledged", () => {
 			expect(() => use({}, { permissions: [] })).not.toThrow();
 		});
 
-		test("throws PermissionMismatchError when plugin declares permissions but none are acknowledged", () => {
-			const plugin: TagikonPlugin<Tag> = {
+		test("throws PermissionMismatchError when extension declares permissions but none are acknowledged", () => {
+			const extension: Extension<Tag> = {
 				permissions: { permissions: ["tag:read"] },
 			};
-			expect(() => use(plugin)).toThrow(PermissionMismatchError);
+			expect(() => use(extension)).toThrow(PermissionMismatchError);
 		});
 
 		test("throws PermissionMismatchError when acknowledged permissions are a subset of declared", () => {
-			const plugin: TagikonPlugin<Tag> = {
+			const extension: Extension<Tag> = {
 				permissions: { permissions: ["tag:read", "relation:read"] },
 			};
-			expect(() => use(plugin, { permissions: ["tag:read"] })).toThrow(PermissionMismatchError);
+			expect(() => use(extension, { permissions: ["tag:read"] })).toThrow(PermissionMismatchError);
 		});
 
 		test("throws PermissionMismatchError when acknowledged permissions are a superset of declared", () => {
-			const plugin: TagikonPlugin<Tag> = {
+			const extension: Extension<Tag> = {
 				permissions: { permissions: ["tag:read"] },
 			};
-			expect(() => use(plugin, { permissions: ["tag:read", "relation:read"] })).toThrow(
+			expect(() => use(extension, { permissions: ["tag:read", "relation:read"] })).toThrow(
 				PermissionMismatchError,
 			);
 		});
 
 		test("PermissionMismatchError is a TagikonError", () => {
-			const plugin: TagikonPlugin<Tag> = {
+			const extension: Extension<Tag> = {
 				permissions: { permissions: ["tag:read"] },
 			};
-			expect(() => use(plugin)).toThrow(TagikonError);
+			expect(() => use(extension)).toThrow(TagikonError);
 		});
 
 		test("error carries declared and acknowledged permissions", () => {
-			const plugin: TagikonPlugin<Tag> = {
+			const extension: Extension<Tag> = {
 				permissions: { permissions: ["tag:read"] },
 			};
 			try {
-				use(plugin, { permissions: ["relation:read"] });
+				use(extension, { permissions: ["relation:read"] });
 				expect.unreachable();
 			} catch (e) {
 				expect(e).toBeInstanceOf(PermissionMismatchError);
@@ -71,22 +71,22 @@ suite("use()", () => {
 	});
 
 	suite("return value", () => {
-		test("returns a frozen PluginRegistration", () => {
+		test("returns a frozen ExtensionRegistration", () => {
 			const registration = use({});
 			expect(Object.isFrozen(registration)).toBe(true);
 		});
 
-		test("carries the plugin reference", () => {
-			const plugin: TagikonPlugin<Tag> = {};
-			const registration = use(plugin);
-			expect(registration.plugin).toBe(plugin);
+		test("carries the extension reference", () => {
+			const extension: Extension<Tag> = {};
+			const registration = use(extension);
+			expect(registration.extension).toBe(extension);
 		});
 
 		test("carries the acknowledged permissions", () => {
-			const plugin: TagikonPlugin<Tag> = {
+			const extension: Extension<Tag> = {
 				permissions: { permissions: ["tag:read"] },
 			};
-			const registration = use(plugin, { permissions: ["tag:read"] });
+			const registration = use(extension, { permissions: ["tag:read"] });
 			expect(registration.permissions).toContain("tag:read");
 		});
 	});

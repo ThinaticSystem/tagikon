@@ -1,10 +1,10 @@
-import type { ObjectKey } from "../core/ids.ts";
-import type { IdOf, Tag } from "../core/tag.ts";
-import type { TagCondition } from "../finder/condition.ts";
-import type { HookPhases } from "../hook/types.ts";
-import type { PermissionManifest } from "../security/permission.ts";
-import type { StorageAdapter } from "../storage/adapter.ts";
-import type { PluginContext } from "./context.ts";
+import type { ObjectKey } from "../../core/ids.ts";
+import type { IdOf, Tag } from "../../core/tag.ts";
+import type { TagCondition } from "../../finder/condition.ts";
+import type { HookPhases } from "../../hook/types.ts";
+import type { PermissionManifest } from "../../security/permission.ts";
+import type { StorageAdapter } from "../storage-adapter/types.ts";
+import type { ExtensionContext } from "./context.ts";
 
 //#region Hook input / output type aliases per operation
 export type AddTagInput<TTag extends Tag> = Omit<TTag, "id">;
@@ -50,21 +50,21 @@ export type ApiShape = Record<string, (...args: readonly unknown[]) => unknown>;
 
 type ApiImplementation<TTag extends Tag, TApi extends ApiShape> = {
 	readonly [TKey in keyof TApi]: TApi[TKey] extends (...args: infer TArgs) => infer TReturn
-		? (ctx: PluginContext<TTag>, ...args: TArgs) => TReturn
+		? (ctx: ExtensionContext<TTag>, ...args: TArgs) => TReturn
 		: never;
 };
 // #endregion
 
-//#region Plugin interface
-export interface TagikonPlugin<
+//#region Extension interface
+export interface Extension<
 	TTag extends Tag,
 	TNamespace extends symbol = never,
 	TApi extends ApiShape = Record<never, never>,
 > {
 	namespace?: TNamespace;
 	/**
-	 * Declare permissions your plugin requires to function.\
-	 * The server will check these against what is granted when registering the plugin, and throw if they are not satisfied.
+	 * Declare permissions your extension requires to function.\
+	 * The server will check these against what is granted when registering the extension, and throw if they are not satisfied.
 	 */
 	permissions?: PermissionManifest;
 	hooks?: {
