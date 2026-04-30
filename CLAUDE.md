@@ -425,7 +425,33 @@ pnpm check         # CI相当の全チェック
 | `src/plugin/use.ts`                | `use()` プラグイン登録 + `PluginRegistration<TNamespace, TApi>`（Permission照合）                    |
 | `src/plugin/use.spec.ts`           | `use()` ユニットテスト（Permission照合・frozen戻り値）                                               |
 
-### 未確定事項（設計中）
+### 未実装（次に着手）
+
+- **`TagikonPlugin`の各フックAPIを`(TagikonPlugin).hooks`の中へ移動**
+
+  ついでにtaginkonというタイポも修正する（`taginkon` → `tagikon`）
 
 - **`removeTag`時のシステムタグ付与** — afterRemoveTag フック経由でプラグインが実装する方針（API内蔵しない）
+
+  論理削除機能
+
+  現在TagKindだけ内部実装しているが、タグの種類を表す属性はコアAPIから削除し、プラグインで提供する方針に変更する
+
+  これに伴い`kind`をコアAPIから削除し、プラグイン内の`transform`フックで追加
+
+  システムタグだけ取得するAPIもプラグインが提供する方針（例: `listSystemTags()`）
+
+- **プラグインの再帰登録** — プラグインAがプラグインBに依存したい場合に、Aの登録関数内でBを登録して呼び出せるようにする（`use()`の中でさらに`use()`）
+
+  ただしプラグイン内で登録されたBは他のプラグインやユーザーコードからは見えない（Aの内部実装の一部）という扱いにする  
+  Private Contextを用意して、そこにAPIを登録する方針
+
+- **タグの階層構造** — ディレクトリを表現するためのプラグイン。`HierarchyPlugin` として実装する。
+
+  ファイルエクスプローラーなどのユースケースを想定し、ツリー構造を提供する。タグの親子関係を管理し、`listTags()` はフラットリストのまま提供する（階層構造はプラグインが管理）  
+  階層変更は `editTag()` 経由で行う  
+  カスタムAPIで階層関連の操作を提供する（例: `moveTag(id, newParentId)`）
+
+### 未確定事項（設計中）
+
 - **タグの使用回数カウント（usage count）** — コアに持つか、Storage Adapterの集計クエリとして提供するか（どちらにせよプラグインで提供する方向）
