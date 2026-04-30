@@ -420,15 +420,12 @@ pnpm check         # CI相当の全チェック
 | `src/security/context.ts`          | `SecurityContext` インターフェース + `createSecurityContext`（freeze済み）                           |
 | `src/security/context.spec.ts`     | SecurityContext ユニットテスト                                                                       |
 | `src/index.ts`                     | 公開エントリーポイント（上記すべてをre-export）                                                      |
+| `src/index.spec.ts`                | 公開API エンドツーエンドテスト（core workflow / MemoryFinder / TagImplement / Custom API）           |
+| `src/plugin/context.ts`            | `PluginContext<TTag>` インターフェース + `createPluginContext`                                       |
+| `src/plugin/use.ts`                | `use()` プラグイン登録 + `PluginRegistration<TNamespace, TApi>`（Permission照合）                    |
+| `src/plugin/use.spec.ts`           | `use()` ユニットテスト（Permission照合・frozen戻り値）                                               |
 
-### 未実装（次に着手）
+### 未確定事項（設計中）
 
-1. **Custom APIプラグイン** — `createServer` の返り値型にプラグインのAPI型をマージ（型レベルマージが複雑、設計中）
-
----
-
-## 未確定事項（設計中）
-
-- **Custom APIプラグインのジェネリクス推論** — `createServer` の返り値型にプラグインのAPI型をマージする実装方針（TypeScriptの型レベルマージが複雑）
 - **`removeTag`時のシステムタグ付与** — afterRemoveTag フック経由でプラグインが実装する方針（API内蔵しない）
 - **タグの使用回数カウント（usage count）** — コアに持つか、Storage Adapterの集計クエリとして提供するか（どちらにせよプラグインで提供する方向）

@@ -62,11 +62,15 @@ export interface TaginkonPlugin<
 	TApi extends ApiShape = Record<never, never>,
 > {
 	namespace?: TNamespace;
+	/**
+	 * Declare permissions your plugin requires to function.\
+	 * The server will check these against what is granted when registering the plugin, and throw if they are not satisfied.
+	 */
 	permissions?: PermissionManifest;
 	addTag?: HookPhases<AddTagInput<TTag>, TTag>;
 	listTags?: HookPhases<ListTagsInput, TTag[]>;
 	editTag?: HookPhases<EditTagInput<TTag>, TTag>;
-	removeTag?: HookPhases<RemoveTagInput<TTag>, void>;
+	removeTag?: HookPhases<RemoveTagInput<TTag>, boolean>;
 	tagObjects?: HookPhases<TagObjectsInput<TTag>, void>;
 	untagObjects?: HookPhases<UntagObjectsInput<TTag>, void>;
 	resetWithTags?: HookPhases<ResetWithTagsInput<TTag>, void>;

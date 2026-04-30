@@ -4,6 +4,14 @@ import type { ApiShape, TaginkonPlugin } from "./types.ts";
 
 import { PermissionMismatchError } from "../security/permission.ts";
 
+export interface UseOptions {
+	/**
+	 * Permissions to grant when registering the plugin.\
+	 * This should perfectly match what the plugin declares in its `permissions` property.\
+	 */
+	readonly permissions: readonly Permission[];
+}
+
 export interface PluginRegistration<
 	TNamespace extends symbol = never,
 	TApi extends ApiShape = Record<never, never>,
@@ -20,7 +28,7 @@ export const use = <
 	TApi extends ApiShape = Record<never, never>,
 >(
 	plugin: TaginkonPlugin<TTag, TNamespace, TApi>,
-	options?: { readonly permissions: ReadonlySet<Permission> },
+	options?: UseOptions,
 ): PluginRegistration<TNamespace, TApi> => {
 	const declared = new Set(plugin.permissions?.permissions ?? []);
 	const acknowledged = new Set(options?.permissions ?? []);

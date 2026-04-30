@@ -9,6 +9,9 @@ export interface StorageAdapter<TTag extends Tag = Tag<TagKind, TagId>> {
 	getTag(id: IdOf<TTag>): Promise<null | TTag>;
 	listTags(): Promise<TTag[]>;
 	updateTag(id: IdOf<TTag>, patch: Partial<Omit<TTag, "id">>): Promise<TTag>;
+	/**
+	 * @returns Whether a tag was actually deleted (i.e. it existed before).
+	 */
 	deleteTag(id: IdOf<TTag>): Promise<boolean>;
 
 	addRelations(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void>;

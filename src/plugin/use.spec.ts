@@ -11,11 +11,9 @@ suite("use()", () => {
 	suite("permission matching", () => {
 		test("succeeds when declared and acknowledged permissions match exactly", () => {
 			const plugin: TaginkonPlugin<Tag> = {
-				permissions: { permissions: new Set(["tag:read", "relation:read"] as const) },
+				permissions: { permissions: ["tag:read", "relation:read"] },
 			};
-			expect(() =>
-				use(plugin, { permissions: new Set(["tag:read", "relation:read"]) }),
-			).not.toThrow();
+			expect(() => use(plugin, { permissions: ["tag:read", "relation:read"] })).not.toThrow();
 		});
 
 		test("succeeds when plugin has no permissions and none are acknowledged", () => {
@@ -23,47 +21,45 @@ suite("use()", () => {
 		});
 
 		test("succeeds when plugin has no permissions and empty array is acknowledged", () => {
-			expect(() => use({}, { permissions: new Set() })).not.toThrow();
+			expect(() => use({}, { permissions: [] })).not.toThrow();
 		});
 
 		test("throws PermissionMismatchError when plugin declares permissions but none are acknowledged", () => {
 			const plugin: TaginkonPlugin<Tag> = {
-				permissions: { permissions: new Set(["tag:read"] as const) },
+				permissions: { permissions: ["tag:read"] },
 			};
 			expect(() => use(plugin)).toThrow(PermissionMismatchError);
 		});
 
 		test("throws PermissionMismatchError when acknowledged permissions are a subset of declared", () => {
 			const plugin: TaginkonPlugin<Tag> = {
-				permissions: { permissions: new Set(["tag:read", "relation:read"] as const) },
+				permissions: { permissions: ["tag:read", "relation:read"] },
 			};
-			expect(() => use(plugin, { permissions: new Set(["tag:read"]) })).toThrow(
-				PermissionMismatchError,
-			);
+			expect(() => use(plugin, { permissions: ["tag:read"] })).toThrow(PermissionMismatchError);
 		});
 
 		test("throws PermissionMismatchError when acknowledged permissions are a superset of declared", () => {
 			const plugin: TaginkonPlugin<Tag> = {
-				permissions: { permissions: new Set(["tag:read"] as const) },
+				permissions: { permissions: ["tag:read"] },
 			};
-			expect(() => use(plugin, { permissions: new Set(["tag:read", "relation:read"]) })).toThrow(
+			expect(() => use(plugin, { permissions: ["tag:read", "relation:read"] })).toThrow(
 				PermissionMismatchError,
 			);
 		});
 
 		test("PermissionMismatchError is a TaginkonError", () => {
 			const plugin: TaginkonPlugin<Tag> = {
-				permissions: { permissions: new Set(["tag:read"] as const) },
+				permissions: { permissions: ["tag:read"] },
 			};
 			expect(() => use(plugin)).toThrow(TaginkonError);
 		});
 
 		test("error carries declared and acknowledged permissions", () => {
 			const plugin: TaginkonPlugin<Tag> = {
-				permissions: { permissions: new Set(["tag:read"] as const) },
+				permissions: { permissions: ["tag:read"] },
 			};
 			try {
-				use(plugin, { permissions: new Set(["relation:read"]) });
+				use(plugin, { permissions: ["relation:read"] });
 				expect.unreachable();
 			} catch (e) {
 				expect(e).toBeInstanceOf(PermissionMismatchError);
@@ -88,9 +84,9 @@ suite("use()", () => {
 
 		test("carries the acknowledged permissions", () => {
 			const plugin: TaginkonPlugin<Tag> = {
-				permissions: { permissions: new Set(["tag:read"] as const) },
+				permissions: { permissions: ["tag:read"] },
 			};
-			const registration = use(plugin, { permissions: new Set(["tag:read"]) });
+			const registration = use(plugin, { permissions: ["tag:read"] });
 			expect(registration.permissions).toContain("tag:read");
 		});
 	});

@@ -61,24 +61,30 @@ suite("Server", () => {
 		test("throws TagNotFoundError for unknown id", async () => {
 			const { server } = makeServer();
 			const tag = await server.addTag("tmp");
-			await server.removeTag(tag.id);
+			await server.deleteTag(tag.id);
+
 			await expect(server.editTag(tag.id, { name: "x" })).rejects.toBeInstanceOf(TagNotFoundError);
 		});
 	});
 
-	suite("removeTag", () => {
-		test("removes a tag", async () => {
+	suite("deleteTag", () => {
+		test("deletes a tag", async () => {
 			const { server } = makeServer();
 			const tag = await server.addTag("bye");
-			await server.removeTag(tag.id);
+			const result = await server.deleteTag(tag.id);
+
+			expect(result).toBe(true);
 			expect(await server.listTags()).toHaveLength(0);
 		});
 
-		test("throws TagNotFoundError for unknown id", async () => {
+		test("returns false for unknown id", async () => {
 			const { server } = makeServer();
 			const tag = await server.addTag("tmp");
-			await server.removeTag(tag.id);
-			await expect(server.removeTag(tag.id)).rejects.toBeInstanceOf(TagNotFoundError);
+			const result1 = await server.deleteTag(tag.id);
+			expect(result1).toBe(true);
+
+			const result2 = await server.deleteTag(tag.id);
+			expect(result2).toBe(false);
 		});
 	});
 
@@ -177,7 +183,7 @@ suite("Server", () => {
 			const storage = new MemoryStorageAdapter();
 			const plugin: TaginkonPlugin<Tag, typeof MY_PLUGIN_NS, { countTags(): Promise<number> }> = {
 				namespace: MY_PLUGIN_NS,
-				permissions: { permissions: new Set(["tag:read"]) },
+				permissions: { permissions: ["tag:read"] },
 				api: {
 					async countTags(ctx) {
 						const tags = await ctx.storage.listTags();
@@ -187,7 +193,7 @@ suite("Server", () => {
 			};
 			const server = createServer({
 				storage,
-				plugins: [use(plugin, { permissions: new Set(["tag:read"]) })],
+				plugins: [use(plugin, { permissions: ["tag:read"] })],
 			});
 			await server.addTag("a");
 			await server.addTag("b");

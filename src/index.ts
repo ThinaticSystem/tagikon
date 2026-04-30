@@ -41,14 +41,7 @@ export type {
 } from "./plugin/types.ts";
 export { use } from "./plugin/use.ts";
 export type { PluginRegistration } from "./plugin/use.ts";
-export { createSecurityContext } from "./security/context.ts";
-export type { SecurityContext } from "./security/context.ts";
-export {
-	PermissionDeniedError,
-	PermissionMismatchError,
-	assertPermission,
-	hasPermission,
-} from "./security/permission.ts";
+export { PermissionMismatchError } from "./security/permission.ts";
 export type { Permission, PermissionManifest } from "./security/permission.ts";
 export type { StorageAdapter } from "./storage/adapter.ts";
 export { MemoryStorageAdapter } from "./storage/memory.ts";
