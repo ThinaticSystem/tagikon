@@ -37,7 +37,7 @@
 - コメントはWHYが非自明な場合のみ。WHATを説明するコメント禁止
 - 型安全を最優先。`any` / `unknown` を不必要に使わない（型制約には `unknown`、条件型推論でも `any` 禁止）
 - 副作用のない純粋関数を基本とし、副作用は Storage Adapter に閉じ込める
-- エラーは必ず `TaginkonError`（`src/core/errors.ts`）を継承する。`Error` の直接継承禁止（文字列スロー禁止）
+- エラーは必ず `TagikonError`（`src/core/errors.ts`）を継承する。`Error` の直接継承禁止（文字列スロー禁止）
 - TypeScriptスタイルのprivateアクセサーの使用は禁止。ECMAScriptの`#`-prefixアクセサーを使用する
 - アクロニムの使用は原則禁止（例外的に `API` / `ID` / `URL` など、既存の概念の場合のみ許可）
 
@@ -158,7 +158,7 @@ src/
     tag-kind.ts          # TAG_KIND 定数 + TagKind 型
     tag.ts               # Tag インターフェース（最小: id / name / kind）+ KindOf / IdOf
     relation.ts          # TagRelation インターフェース
-    errors.ts            # ドメインエラークラス（TaginkonError 基底）
+    errors.ts            # ドメインエラークラス（TagikonError 基底）
   api/
     server.ts            # Server API（addTag / listTags / editTag / removeTag / ...）
   plugin/
@@ -324,13 +324,13 @@ type TagKind = (typeof TAG_KIND)[keyof typeof TAG_KIND];
 ### エラー階層
 
 ```
-TaginkonError (基底)
+TagikonError (基底)
   ├── TagNotFoundError       { tagId: TagId }
   ├── TagAlreadyExistsError  { tagName: string }
   └── ObjectNotTaggedError   { tagId: TagId, objectKey: ObjectKey }
 ```
 
-すべてのライブラリエラーは `TaginkonError` を継承。`instanceof TaginkonError` でライブラリ由来エラーか判定可能。
+すべてのライブラリエラーは `TagikonError` を継承。`instanceof TagikonError` でライブラリ由来エラーか判定可能。
 
 ---
 
@@ -388,48 +388,52 @@ pnpm check         # CI相当の全チェック
 2. `src/<layer>/<module>.spec.ts` にテストを記述
 3. 公開すべきものは `src/index.ts` からre-export
 
+### CLAUDE.md の更新ルール
+
+作業が完了したら必ずこのファイルを更新する:
+
+- 完了したタスクは「未実装」から「完了」テーブルへ移動する
+- 完了テーブルのクラス名・関数名など固有名詞はコードの実態に合わせる
+- セッション間の引き継ぎ情報（完了サマリー・次タスク）はメモリ（`~/.claude/projects/-tagikon/memory/`）に書く。このファイルには書かない
+
 ---
 
 ## 実装状況
 
 ### 完了
 
-| ファイル                           | 内容                                                                                                 |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `src/core/ids.ts`                  | `TagId` / `ObjectKey` branded types + factory                                                        |
-| `src/core/tag-kind.ts`             | `TAG_KIND` 定数 + `TagKind` 型                                                                       |
-| `src/core/tag.ts`                  | `Tag<TKind, TId>` (default: string, unknown) + `KindOf<TTag>` + `IdOf<TTag>`                         |
-| `src/core/relation.ts`             | `TagRelation` インターフェース                                                                       |
-| `src/core/errors.ts`               | `TaginkonError` / `TagNotFoundError` / `TagAlreadyExistsError` / `ObjectNotTaggedError`              |
-| `src/storage/adapter.ts`           | `StorageAdapter<TTag>` インターフェース（default: `Tag<TagKind, TagId>`）                            |
-| `src/storage/memory.ts`            | `MemoryStorageAdapter<TTag>` インメモリ参照実装（`idPlugin` 注入対応・双方向リレーション管理）       |
-| `src/storage/memory.spec.ts`       | `MemoryStorageAdapter` 単体テスト（カスタム idPlugin スイート含む）                                  |
-| `src/hook/types.ts`                | `TapRawFn` / `TransformFn<TInput, TTransformed>` / `TapTransformedFn` / `AfterFn` / `HookPhases`     |
-| `src/hook/runner.ts`               | `collectHooks` / `runPipeline`（4フェーズ実行エンジン）                                              |
-| `src/plugin/types.ts`              | `TaginkonPlugin<TTag>` / `FinderImplement<TTag>` + 各操作の Input 型エイリアス                       |
-| `src/plugin/tag-id-plugin.ts`      | `TagIdPlugin<TId>` インターフェース + `stringTagIdPlugin` ヘルパー + `UUID_TAG_ID_PLUGIN` デフォルト |
-| `src/plugin/tag-id-plugin.spec.ts` | `TagIdPlugin` ユニットテスト                                                                         |
-| `src/finder/condition.ts`          | `TagCondition<TId>` discriminated union + `has` / `and` / `or` / `not` builder 関数                  |
-| `src/finder/condition.spec.ts`     | condition builder ユニットテスト                                                                     |
-| `src/finder/memory-finder.ts`      | `MemoryFinder<TTag>` — StorageAdapter を使ってインメモリで条件を評価する `FinderImplement` 実装      |
-| `src/finder/memory-finder.spec.ts` | `MemoryFinder` 統合テスト（has / and / or / not / 入れ子）                                           |
-| `src/api/server.ts`                | `Server<TTag>` インターフェース + `createServer`（全8操作）                                          |
-| `src/api/server.spec.ts`           | Server 統合テスト（フック動作・TagImplement拡張含む）                                                |
-| `src/security/permission.ts`       | `Permission` / `PermissionManifest` / `PermissionDeniedError` / `hasPermission` / `assertPermission` |
-| `src/security/permission.spec.ts`  | permission ユニットテスト                                                                            |
-| `src/security/context.ts`          | `SecurityContext` インターフェース + `createSecurityContext`（freeze済み）                           |
-| `src/security/context.spec.ts`     | SecurityContext ユニットテスト                                                                       |
-| `src/index.ts`                     | 公開エントリーポイント（上記すべてをre-export）                                                      |
-| `src/index.spec.ts`                | 公開API エンドツーエンドテスト（core workflow / MemoryFinder / TagImplement / Custom API）           |
-| `src/plugin/context.ts`            | `PluginContext<TTag>` インターフェース + `createPluginContext`                                       |
-| `src/plugin/use.ts`                | `use()` プラグイン登録 + `PluginRegistration<TNamespace, TApi>`（Permission照合）                    |
-| `src/plugin/use.spec.ts`           | `use()` ユニットテスト（Permission照合・frozen戻り値）                                               |
+| ファイル                           | 内容                                                                                                           |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `src/core/ids.ts`                  | `TagId` / `ObjectKey` branded types + factory                                                                  |
+| `src/core/tag-kind.ts`             | `TAG_KIND` 定数 + `TagKind` 型                                                                                 |
+| `src/core/tag.ts`                  | `Tag<TKind, TId>` (default: string, unknown) + `KindOf<TTag>` + `IdOf<TTag>`                                   |
+| `src/core/relation.ts`             | `TagRelation` インターフェース                                                                                 |
+| `src/core/errors.ts`               | `TagikonError` / `TagNotFoundError` / `TagAlreadyExistsError` / `ObjectNotTaggedError`                         |
+| `src/storage/adapter.ts`           | `StorageAdapter<TTag>` インターフェース（default: `Tag<TagKind, TagId>`）                                      |
+| `src/storage/memory.ts`            | `MemoryStorageAdapter<TTag>` インメモリ参照実装（`idPlugin` 注入対応・双方向リレーション管理）                 |
+| `src/storage/memory.spec.ts`       | `MemoryStorageAdapter` 単体テスト（カスタム idPlugin スイート含む）                                            |
+| `src/hook/types.ts`                | `TapRawFn` / `TransformFn<TInput, TTransformed>` / `TapTransformedFn` / `AfterFn` / `HookPhases`               |
+| `src/hook/runner.ts`               | `collectHooks` / `runPipeline`（4フェーズ実行エンジン）                                                        |
+| `src/plugin/types.ts`              | `TagikonPlugin<TTag>`（`hooks?:` でフックをグループ化）/ `FinderImplement<TTag>` + 各操作の Input 型エイリアス |
+| `src/plugin/tag-id-plugin.ts`      | `TagIdPlugin<TId>` インターフェース + `stringTagIdPlugin` ヘルパー + `UUID_TAG_ID_PLUGIN` デフォルト           |
+| `src/plugin/tag-id-plugin.spec.ts` | `TagIdPlugin` ユニットテスト                                                                                   |
+| `src/finder/condition.ts`          | `TagCondition<TId>` discriminated union + `has` / `and` / `or` / `not` builder 関数                            |
+| `src/finder/condition.spec.ts`     | condition builder ユニットテスト                                                                               |
+| `src/finder/memory-finder.ts`      | `MemoryFinder<TTag>` — StorageAdapter を使ってインメモリで条件を評価する `FinderImplement` 実装                |
+| `src/finder/memory-finder.spec.ts` | `MemoryFinder` 統合テスト（has / and / or / not / 入れ子）                                                     |
+| `src/api/server.ts`                | `Server<TTag>` インターフェース + `createServer`（全8操作）                                                    |
+| `src/api/server.spec.ts`           | Server 統合テスト（フック動作・TagImplement拡張含む）                                                          |
+| `src/security/permission.ts`       | `Permission` / `PermissionManifest` / `PermissionDeniedError` / `hasPermission` / `assertPermission`           |
+| `src/security/permission.spec.ts`  | permission ユニットテスト                                                                                      |
+| `src/security/context.ts`          | `SecurityContext` インターフェース + `createSecurityContext`（freeze済み）                                     |
+| `src/security/context.spec.ts`     | SecurityContext ユニットテスト                                                                                 |
+| `src/index.ts`                     | 公開エントリーポイント（上記すべてをre-export）                                                                |
+| `src/index.spec.ts`                | 公開API エンドツーエンドテスト（core workflow / MemoryFinder / TagImplement / Custom API）                     |
+| `src/plugin/context.ts`            | `PluginContext<TTag>` インターフェース + `createPluginContext`                                                 |
+| `src/plugin/use.ts`                | `use()` プラグイン登録 + `PluginRegistration<TNamespace, TApi>`（Permission照合）                              |
+| `src/plugin/use.spec.ts`           | `use()` ユニットテスト（Permission照合・frozen戻り値）                                                         |
 
 ### 未実装（次に着手）
-
-- **`TagikonPlugin`の各フックAPIを`(TagikonPlugin).hooks`の中へ移動**
-
-  ついでにtaginkonというタイポも修正する（`taginkon` → `tagikon`）
 
 - **`removeTag`時のシステムタグ付与** — afterRemoveTag フック経由でプラグインが実装する方針（API内蔵しない）
 

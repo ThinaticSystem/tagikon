@@ -1,4 +1,4 @@
-import type { ApiShape, Tag, TaginkonPlugin } from "./index.ts";
+import type { ApiShape, Tag, TagikonPlugin } from "./index.ts";
 
 import { expect, suite, test } from "vitest";
 
@@ -6,7 +6,7 @@ import {
 	MemoryFinder,
 	MemoryStorageAdapter,
 	TagAlreadyExistsError,
-	TaginkonError,
+	TagikonError,
 	and,
 	createServer,
 	has,
@@ -50,11 +50,11 @@ suite("Public API", () => {
 			expect(isDeletedAgain).toBe(false);
 		});
 
-		test("library errors are instanceof TaginkonError", async () => {
+		test("library errors are instanceof TagikonError", async () => {
 			const server = createServer({ storage: new MemoryStorageAdapter() });
 
 			await server.addTag("x");
-			await expect(server.addTag("x")).rejects.toBeInstanceOf(TaginkonError);
+			await expect(server.addTag("x")).rejects.toBeInstanceOf(TagikonError);
 		});
 	});
 
@@ -66,7 +66,7 @@ suite("Public API", () => {
 		 */
 		const setupFindScenario = async () => {
 			const storage = new MemoryStorageAdapter();
-			const plugin: TaginkonPlugin<Tag> = {
+			const plugin: TagikonPlugin<Tag> = {
 				finder: new MemoryFinder(),
 			};
 			const server = createServer({
@@ -119,9 +119,11 @@ suite("Public API", () => {
 				storage,
 				plugins: [
 					use<TagWithNote>({
-						addTag: {
-							transform(input) {
-								return { ...input, note: input.note ?? "" };
+						hooks: {
+							addTag: {
+								transform(input) {
+									return { ...input, note: input.note ?? "" };
+								},
 							},
 						},
 					}),
@@ -133,13 +135,13 @@ suite("Public API", () => {
 	});
 
 	suite("Custom API plugin", () => {
-		const STATS_NS: unique symbol = Symbol("stats");
+		const STATS_NS = Symbol("stats");
 
 		test("exposes custom API on the server within namespace", async () => {
 			interface StatsAPI extends ApiShape {
 				tagCount: () => Promise<number>;
 			}
-			const plugin: TaginkonPlugin<Tag, typeof STATS_NS, StatsAPI> = {
+			const plugin: TagikonPlugin<Tag, typeof STATS_NS, StatsAPI> = {
 				namespace: STATS_NS,
 				// Specify permissions the plugin requires to function.
 				// The server will check these against what is granted when registering the plugin, and throw if they are not satisfied.

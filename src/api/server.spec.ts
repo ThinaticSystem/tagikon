@@ -1,5 +1,5 @@
 import type { Tag } from "../core/tag.ts";
-import type { TaginkonPlugin } from "../plugin/types.ts";
+import type { TagikonPlugin } from "../plugin/types.ts";
 
 import { expect, suite, test, vi } from "vitest";
 
@@ -126,7 +126,7 @@ suite("Server", () => {
 			const storage = new MemoryStorageAdapter();
 			const server = createServer({
 				storage,
-				plugins: [use({ addTag: { tapRaw } })],
+				plugins: [use({ hooks: { addTag: { tapRaw } } })],
 			});
 			await server.addTag("observe");
 			expect(tapRaw).toHaveBeenCalledWith(expect.objectContaining({ name: "observe" }));
@@ -138,9 +138,11 @@ suite("Server", () => {
 				storage,
 				plugins: [
 					use({
-						addTag: {
-							transform(input) {
-								return { ...input, name: input.name.toUpperCase() };
+						hooks: {
+							addTag: {
+								transform(input) {
+									return { ...input, name: input.name.toUpperCase() };
+								},
 							},
 						},
 					}),
@@ -155,7 +157,7 @@ suite("Server", () => {
 			const storage = new MemoryStorageAdapter();
 			const server = createServer({
 				storage,
-				plugins: [use({ addTag: { after } })],
+				plugins: [use({ hooks: { addTag: { after } } })],
 			});
 			const tag = await server.addTag("hook-test");
 			expect(after).toHaveBeenCalledWith(expect.anything(), tag);
@@ -167,7 +169,7 @@ suite("Server", () => {
 
 		test("exposes custom API under the plugin namespace symbol", async () => {
 			const storage = new MemoryStorageAdapter();
-			const plugin: TaginkonPlugin<Tag, typeof MY_PLUGIN_NS, { greet(): string }> = {
+			const plugin: TagikonPlugin<Tag, typeof MY_PLUGIN_NS, { greet(): string }> = {
 				namespace: MY_PLUGIN_NS,
 				api: {
 					greet(_ctx) {
@@ -181,7 +183,7 @@ suite("Server", () => {
 
 		test("custom API receives ctx with storage access", async () => {
 			const storage = new MemoryStorageAdapter();
-			const plugin: TaginkonPlugin<Tag, typeof MY_PLUGIN_NS, { countTags(): Promise<number> }> = {
+			const plugin: TagikonPlugin<Tag, typeof MY_PLUGIN_NS, { countTags(): Promise<number> }> = {
 				namespace: MY_PLUGIN_NS,
 				permissions: { permissions: ["tag:read"] },
 				api: {
@@ -212,9 +214,11 @@ suite("Server", () => {
 				storage,
 				plugins: [
 					use<TagWithDesc>({
-						addTag: {
-							transform(input) {
-								return { ...input, description: input.description ?? "" };
+						hooks: {
+							addTag: {
+								transform(input) {
+									return { ...input, description: input.description ?? "" };
+								},
 							},
 						},
 					}),

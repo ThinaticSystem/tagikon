@@ -1,8 +1,8 @@
 import type { ObjectKey, TagId } from "./ids.ts";
 
-export class TaginkonError extends Error {}
+export class TagikonError extends Error {}
 
-export class TagNotFoundError extends TaginkonError {
+export class TagNotFoundError extends TagikonError {
 	readonly name = "TagNotFoundError";
 	readonly tagId: TagId;
 
@@ -12,7 +12,7 @@ export class TagNotFoundError extends TaginkonError {
 	}
 }
 
-export class TagAlreadyExistsError extends TaginkonError {
+export class TagAlreadyExistsError extends TagikonError {
 	readonly name = "TagAlreadyExistsError";
 	readonly tagName: string;
 
@@ -22,7 +22,7 @@ export class TagAlreadyExistsError extends TaginkonError {
 	}
 }
 
-export class ObjectNotTaggedError extends TaginkonError {
+export class ObjectNotTaggedError extends TagikonError {
 	readonly name = "ObjectNotTaggedError";
 	readonly tagId: TagId;
 	readonly objectKey: ObjectKey;

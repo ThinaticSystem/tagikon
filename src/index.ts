@@ -4,7 +4,7 @@ export {
 	ObjectNotTaggedError,
 	TagAlreadyExistsError,
 	TagNotFoundError,
-	TaginkonError,
+	TagikonError,
 } from "./core/errors.ts";
 export { objectKey, tagId } from "./core/ids.ts";
 export type { ObjectKey, TagId } from "./core/ids.ts";
@@ -36,7 +36,7 @@ export type {
 	RemoveTagInput,
 	ResetWithTagsInput,
 	TagObjectsInput,
-	TaginkonPlugin,
+	TagikonPlugin,
 	UntagObjectsInput,
 } from "./plugin/types.ts";
 export { use } from "./plugin/use.ts";

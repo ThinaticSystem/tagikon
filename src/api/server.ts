@@ -2,7 +2,7 @@ import type { ObjectKey } from "../core/ids.ts";
 import type { IdOf, KindOf, Tag } from "../core/tag.ts";
 import type { TagCondition } from "../finder/condition.ts";
 import type { PluginContext } from "../plugin/context.ts";
-import type { ApiShape, TaginkonPlugin } from "../plugin/types.ts";
+import type { ApiShape, TagikonPlugin } from "../plugin/types.ts";
 import type { PluginRegistration } from "../plugin/use.ts";
 import type { StorageAdapter } from "../storage/adapter.ts";
 
@@ -56,17 +56,17 @@ export const createServer = <
 
 	// Cast to TTag: use() verified compatibility at the call site
 	const plugins = registrations.map(
-		(r) => r.plugin as unknown as TaginkonPlugin<TTag, symbol, ApiShape>,
+		(r) => r.plugin as unknown as TagikonPlugin<TTag, symbol, ApiShape>,
 	);
 
-	const addTagHooks = collectHooks(plugins.map((p) => p.addTag));
-	const listTagsHooks = collectHooks(plugins.map((p) => p.listTags));
-	const editTagHooks = collectHooks(plugins.map((p) => p.editTag));
-	const removeTagHooks = collectHooks(plugins.map((p) => p.removeTag));
-	const tagObjectsHooks = collectHooks(plugins.map((p) => p.tagObjects));
-	const untagObjectsHooks = collectHooks(plugins.map((p) => p.untagObjects));
-	const resetWithTagsHooks = collectHooks(plugins.map((p) => p.resetWithTags));
-	const findObjectsByTagsHooks = collectHooks(plugins.map((p) => p.findObjectsByTags));
+	const addTagHooks = collectHooks(plugins.map((p) => p.hooks?.addTag));
+	const listTagsHooks = collectHooks(plugins.map((p) => p.hooks?.listTags));
+	const editTagHooks = collectHooks(plugins.map((p) => p.hooks?.editTag));
+	const removeTagHooks = collectHooks(plugins.map((p) => p.hooks?.removeTag));
+	const tagObjectsHooks = collectHooks(plugins.map((p) => p.hooks?.tagObjects));
+	const untagObjectsHooks = collectHooks(plugins.map((p) => p.hooks?.untagObjects));
+	const resetWithTagsHooks = collectHooks(plugins.map((p) => p.hooks?.resetWithTags));
+	const findObjectsByTagsHooks = collectHooks(plugins.map((p) => p.hooks?.findObjectsByTags));
 
 	const finder = plugins.find((p) => p.finder)?.finder;
 

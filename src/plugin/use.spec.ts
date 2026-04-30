@@ -1,16 +1,16 @@
 import type { Tag } from "../core/tag.ts";
-import type { TaginkonPlugin } from "./types.ts";
+import type { TagikonPlugin } from "./types.ts";
 
 import { expect, suite, test } from "vitest";
 
-import { TaginkonError } from "../core/errors.ts";
+import { TagikonError } from "../core/errors.ts";
 import { PermissionMismatchError } from "../security/permission.ts";
 import { use } from "./use.ts";
 
 suite("use()", () => {
 	suite("permission matching", () => {
 		test("succeeds when declared and acknowledged permissions match exactly", () => {
-			const plugin: TaginkonPlugin<Tag> = {
+			const plugin: TagikonPlugin<Tag> = {
 				permissions: { permissions: ["tag:read", "relation:read"] },
 			};
 			expect(() => use(plugin, { permissions: ["tag:read", "relation:read"] })).not.toThrow();
@@ -25,21 +25,21 @@ suite("use()", () => {
 		});
 
 		test("throws PermissionMismatchError when plugin declares permissions but none are acknowledged", () => {
-			const plugin: TaginkonPlugin<Tag> = {
+			const plugin: TagikonPlugin<Tag> = {
 				permissions: { permissions: ["tag:read"] },
 			};
 			expect(() => use(plugin)).toThrow(PermissionMismatchError);
 		});
 
 		test("throws PermissionMismatchError when acknowledged permissions are a subset of declared", () => {
-			const plugin: TaginkonPlugin<Tag> = {
+			const plugin: TagikonPlugin<Tag> = {
 				permissions: { permissions: ["tag:read", "relation:read"] },
 			};
 			expect(() => use(plugin, { permissions: ["tag:read"] })).toThrow(PermissionMismatchError);
 		});
 
 		test("throws PermissionMismatchError when acknowledged permissions are a superset of declared", () => {
-			const plugin: TaginkonPlugin<Tag> = {
+			const plugin: TagikonPlugin<Tag> = {
 				permissions: { permissions: ["tag:read"] },
 			};
 			expect(() => use(plugin, { permissions: ["tag:read", "relation:read"] })).toThrow(
@@ -47,15 +47,15 @@ suite("use()", () => {
 			);
 		});
 
-		test("PermissionMismatchError is a TaginkonError", () => {
-			const plugin: TaginkonPlugin<Tag> = {
+		test("PermissionMismatchError is a TagikonError", () => {
+			const plugin: TagikonPlugin<Tag> = {
 				permissions: { permissions: ["tag:read"] },
 			};
-			expect(() => use(plugin)).toThrow(TaginkonError);
+			expect(() => use(plugin)).toThrow(TagikonError);
 		});
 
 		test("error carries declared and acknowledged permissions", () => {
-			const plugin: TaginkonPlugin<Tag> = {
+			const plugin: TagikonPlugin<Tag> = {
 				permissions: { permissions: ["tag:read"] },
 			};
 			try {
@@ -77,13 +77,13 @@ suite("use()", () => {
 		});
 
 		test("carries the plugin reference", () => {
-			const plugin: TaginkonPlugin<Tag> = {};
+			const plugin: TagikonPlugin<Tag> = {};
 			const registration = use(plugin);
 			expect(registration.plugin).toBe(plugin);
 		});
 
 		test("carries the acknowledged permissions", () => {
-			const plugin: TaginkonPlugin<Tag> = {
+			const plugin: TagikonPlugin<Tag> = {
 				permissions: { permissions: ["tag:read"] },
 			};
 			const registration = use(plugin, { permissions: ["tag:read"] });

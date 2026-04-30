@@ -56,7 +56,7 @@ type ApiImplementation<TTag extends Tag, TApi extends ApiShape> = {
 // #endregion
 
 //#region Plugin interface
-export interface TaginkonPlugin<
+export interface TagikonPlugin<
 	TTag extends Tag,
 	TNamespace extends symbol = never,
 	TApi extends ApiShape = Record<never, never>,
@@ -67,14 +67,16 @@ export interface TaginkonPlugin<
 	 * The server will check these against what is granted when registering the plugin, and throw if they are not satisfied.
 	 */
 	permissions?: PermissionManifest;
-	addTag?: HookPhases<AddTagInput<TTag>, TTag>;
-	listTags?: HookPhases<ListTagsInput, TTag[]>;
-	editTag?: HookPhases<EditTagInput<TTag>, TTag>;
-	removeTag?: HookPhases<RemoveTagInput<TTag>, boolean>;
-	tagObjects?: HookPhases<TagObjectsInput<TTag>, void>;
-	untagObjects?: HookPhases<UntagObjectsInput<TTag>, void>;
-	resetWithTags?: HookPhases<ResetWithTagsInput<TTag>, void>;
-	findObjectsByTags?: HookPhases<FindObjectsByTagsInput<TTag>, ObjectKey[]>;
+	hooks?: {
+		addTag?: HookPhases<AddTagInput<TTag>, TTag>;
+		listTags?: HookPhases<ListTagsInput, TTag[]>;
+		editTag?: HookPhases<EditTagInput<TTag>, TTag>;
+		removeTag?: HookPhases<RemoveTagInput<TTag>, boolean>;
+		tagObjects?: HookPhases<TagObjectsInput<TTag>, void>;
+		untagObjects?: HookPhases<UntagObjectsInput<TTag>, void>;
+		resetWithTags?: HookPhases<ResetWithTagsInput<TTag>, void>;
+		findObjectsByTags?: HookPhases<FindObjectsByTagsInput<TTag>, ObjectKey[]>;
+	};
 	finder?: FinderImplement<TTag>;
 	api?: ApiImplementation<TTag, TApi>;
 }
