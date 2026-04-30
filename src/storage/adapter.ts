@@ -1,10 +1,7 @@
 import type { ObjectKey, TagId } from "../core/ids.ts";
-import type { TagKind } from "../core/tag-kind.ts";
 import type { IdOf, Tag } from "../core/tag.ts";
 
-// Default is the concrete base tag type (TagKind + TagId) so that unparameterized
-// usage such as `new MemoryStorageAdapter()` remains fully type-safe.
-export interface StorageAdapter<TTag extends Tag = Tag<TagKind, TagId>> {
+export interface StorageAdapter<TTag extends Tag = Tag<TagId>> {
 	createTag(data: Omit<TTag, "id">): Promise<TTag>;
 	getTag(id: IdOf<TTag>): Promise<null | TTag>;
 	listTags(): Promise<TTag[]>;

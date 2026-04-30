@@ -5,12 +5,9 @@ import { expect, suite, test, vi } from "vitest";
 
 import { TagAlreadyExistsError, TagNotFoundError } from "../core/errors.ts";
 import { objectKey } from "../core/ids.ts";
-import { TAG_KIND } from "../core/tag-kind.ts";
 import { use } from "../plugin/use.ts";
 import { MemoryStorageAdapter } from "../storage/memory.ts";
 import { createServer } from "./server.ts";
-
-const ok = (s: string) => objectKey(s);
 
 function makeServer() {
 	const storage = new MemoryStorageAdapter();
@@ -20,17 +17,10 @@ function makeServer() {
 
 suite("Server", () => {
 	suite("addTag", () => {
-		test("creates a tag with default kind=user", async () => {
+		test("creates a tag with the given name", async () => {
 			const { server } = makeServer();
 			const tag = await server.addTag("work");
 			expect(tag.name).toBe("work");
-			expect(tag.kind).toBe(TAG_KIND.USER);
-		});
-
-		test("respects explicit kind", async () => {
-			const { server } = makeServer();
-			const tag = await server.addTag("sys", { kind: TAG_KIND.SYSTEM });
-			expect(tag.kind).toBe(TAG_KIND.SYSTEM);
 		});
 
 		test("throws TagAlreadyExistsError on duplicate name", async () => {
@@ -92,11 +82,11 @@ suite("Server", () => {
 		test("tags and untags objects", async () => {
 			const { server, storage } = makeServer();
 			const tag = await server.addTag("photos");
-			await server.tagObjects(tag.id, [ok("img1"), ok("img2")]);
+			await server.tagObjects(tag.id, [objectKey("img1"), objectKey("img2")]);
 			expect(await storage.listTagObjects(tag.id)).toHaveLength(2);
 
-			await server.untagObjects(tag.id, [ok("img1")]);
-			expect(await storage.listTagObjects(tag.id)).toEqual([ok("img2")]);
+			await server.untagObjects(tag.id, [objectKey("img1")]);
+			expect(await storage.listTagObjects(tag.id)).toEqual([objectKey("img2")]);
 		});
 	});
 
@@ -107,12 +97,12 @@ suite("Server", () => {
 			const t2 = await server.addTag("t2");
 			const t3 = await server.addTag("t3");
 
-			await server.tagObjects(t1.id, [ok("file")]);
-			await server.tagObjects(t2.id, [ok("file")]);
+			await server.tagObjects(t1.id, [objectKey("file")]);
+			await server.tagObjects(t2.id, [objectKey("file")]);
 			// file has t1, t2 — reset to t2, t3
-			await server.resetWithTags(ok("file"), [t2.id, t3.id]);
+			await server.resetWithTags(objectKey("file"), [t2.id, t3.id]);
 
-			const objectTags = await storage.listObjectTags(ok("file"));
+			const objectTags = await storage.listObjectTags(objectKey("file"));
 			expect(objectTags).toHaveLength(2);
 			expect(objectTags).toContain(t2.id);
 			expect(objectTags).toContain(t3.id);

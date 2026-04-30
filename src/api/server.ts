@@ -1,12 +1,11 @@
 import type { ObjectKey } from "../core/ids.ts";
-import type { IdOf, KindOf, Tag } from "../core/tag.ts";
+import type { IdOf, Tag } from "../core/tag.ts";
 import type { TagCondition } from "../finder/condition.ts";
 import type { PluginContext } from "../plugin/context.ts";
 import type { ApiShape, TagikonPlugin } from "../plugin/types.ts";
 import type { PluginRegistration } from "../plugin/use.ts";
 import type { StorageAdapter } from "../storage/adapter.ts";
 
-import { TAG_KIND } from "../core/tag-kind.ts";
 import { collectHooks, runPipeline } from "../hook/runner.ts";
 import { createPluginContext } from "../plugin/context.ts";
 
@@ -72,11 +71,7 @@ export const createServer = <
 
 	const server: Server<TTag> = {
 		async addTag(name, opts) {
-			const rawInput = {
-				name,
-				kind: TAG_KIND.USER as KindOf<TTag>,
-				...opts,
-			} as unknown as Omit<TTag, "id">;
+			const rawInput = { name, ...opts } as unknown as Omit<TTag, "id">;
 			return runPipeline(addTagHooks, rawInput, (data) => storage.createTag(data));
 		},
 

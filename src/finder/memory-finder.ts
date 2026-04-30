@@ -1,5 +1,4 @@
 import type { ObjectKey, TagId } from "../core/ids.ts";
-import type { TagKind } from "../core/tag-kind.ts";
 import type { IdOf, Tag } from "../core/tag.ts";
 import type { FinderImplement } from "../plugin/types.ts";
 import type { StorageAdapter } from "../storage/adapter.ts";
@@ -69,7 +68,7 @@ const evalCondition = async <TTag extends Tag>(
 	}
 };
 
-export class MemoryFinder<TTag extends Tag = Tag<TagKind, TagId>> implements FinderImplement<TTag> {
+export class MemoryFinder<TTag extends Tag = Tag<TagId>> implements FinderImplement<TTag> {
 	async findObjectsByTags(
 		query: TagCondition<IdOf<TTag>>,
 		storage: StorageAdapter<TTag>,

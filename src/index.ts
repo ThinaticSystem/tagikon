@@ -9,9 +9,7 @@ export {
 export { objectKey, tagId } from "./core/ids.ts";
 export type { ObjectKey, TagId } from "./core/ids.ts";
 export type { TagRelation } from "./core/relation.ts";
-export { TAG_KIND } from "./core/tag-kind.ts";
-export type { TagKind } from "./core/tag-kind.ts";
-export type { IdOf, KindOf, Tag } from "./core/tag.ts";
+export type { IdOf, Tag } from "./core/tag.ts";
 export { and, has, not, or } from "./finder/condition.ts";
 export type {
 	AndCondition,

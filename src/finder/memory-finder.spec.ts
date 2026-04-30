@@ -3,7 +3,6 @@ import type { ObjectKey } from "../core/ids.ts";
 import { expect, suite, test } from "vitest";
 
 import { objectKey } from "../core/ids.ts";
-import { TAG_KIND } from "../core/tag-kind.ts";
 import { MemoryStorageAdapter } from "../storage/memory.ts";
 import { and, has, not, or } from "./condition.ts";
 import { MemoryFinder } from "./memory-finder.ts";
@@ -28,9 +27,9 @@ async function setup() {
 	const storage = new MemoryStorageAdapter();
 
 	const tags = {
-		a: await storage.createTag({ name: "a", kind: TAG_KIND.USER }),
-		b: await storage.createTag({ name: "b", kind: TAG_KIND.USER }),
-		c: await storage.createTag({ name: "c", kind: TAG_KIND.USER }),
+		a: await storage.createTag({ name: "a" }),
+		b: await storage.createTag({ name: "b" }),
+		c: await storage.createTag({ name: "c" }),
 	};
 
 	await storage.addRelations(tags.a.id, [objectKey("obj1"), objectKey("obj3")]);

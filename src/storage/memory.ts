@@ -1,5 +1,4 @@
 import type { ObjectKey, TagId } from "../core/ids.ts";
-import type { TagKind } from "../core/tag-kind.ts";
 import type { IdOf, Tag } from "../core/tag.ts";
 import type { TagIdPlugin } from "../plugin/tag-id-plugin.ts";
 import type { StorageAdapter } from "./adapter.ts";
@@ -7,9 +6,7 @@ import type { StorageAdapter } from "./adapter.ts";
 import { TagAlreadyExistsError, TagNotFoundError } from "../core/errors.ts";
 import { UUID_TAG_ID_PLUGIN } from "../plugin/tag-id-plugin.ts";
 
-export class MemoryStorageAdapter<
-	TTag extends Tag = Tag<TagKind, TagId>,
-> implements StorageAdapter<TTag> {
+export class MemoryStorageAdapter<TTag extends Tag = Tag<TagId>> implements StorageAdapter<TTag> {
 	// Store tags keyed by their serialized id string for uniform lookup.
 	readonly #tags = new Map<string, TTag>();
 	// tagId string → Set of objectKey strings
