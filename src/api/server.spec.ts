@@ -4,26 +4,26 @@ import type { Extension } from "../plugin/extension/types.ts";
 import { expect, suite, test, vi } from "vitest";
 
 import { TagNotFoundError } from "../core/errors.ts";
-import { objectKey } from "../core/ids.ts";
+import { objectKey, tagId } from "../core/ids.ts";
 import { use } from "../plugin/extension/use.ts";
 import { MapStorageAdapter } from "../plugins/storage-adapters/map-storage-adapter/index.ts";
-import { createServer } from "./server.ts";
+import { setupTagikon } from "./server.ts";
 
 interface TagWithLabel extends Tag {
 	readonly label: string;
 }
 
-const makeServer = () => {
+const makeTagikon = () => {
 	const storage = new MapStorageAdapter<TagWithLabel>();
-	const server = createServer<TagWithLabel>({ storage });
-	return { server, storage };
+	const tagikon = setupTagikon({ storageAdapter: storage });
+	return { tagikon, storage };
 };
 
-suite("Server", () => {
+suite("setupTagikon", () => {
 	suite("addTag", () => {
 		test("creates a tag with the given attributes", async () => {
-			const { server } = makeServer();
-			const tag = await server.addTag({ label: "work" });
+			const { tagikon } = makeTagikon();
+			const tag = await tagikon.addTag({ label: "work" });
 			expect(tag.label).toBe("work");
 			expect(tag.id).toBeDefined();
 		});
@@ -31,75 +31,76 @@ suite("Server", () => {
 
 	suite("listTags", () => {
 		test("returns all tags", async () => {
-			const { server } = makeServer();
-			await server.addTag({ label: "a" });
-			await server.addTag({ label: "b" });
-			const tags = await server.listTags();
+			const { tagikon } = makeTagikon();
+			await tagikon.addTag({ label: "a" });
+			await tagikon.addTag({ label: "b" });
+			const tags = await tagikon.listTags();
 			expect(tags).toHaveLength(2);
 		});
 	});
 
 	suite("editTag", () => {
 		test("updates the tag attributes", async () => {
-			const { server } = makeServer();
-			const tag = await server.addTag({ label: "old" });
-			const updated = await server.editTag(tag.id, { label: "new" });
+			const { tagikon } = makeTagikon();
+			const tag = await tagikon.addTag({ label: "old" });
+			const updated = await tagikon.editTag(tag.id, { label: "new" });
 			expect(updated.label).toBe("new");
 		});
 
 		test("throws TagNotFoundError for unknown id", async () => {
-			const { server } = makeServer();
-			const tag = await server.addTag({ label: "tmp" });
-			await server.deleteTag(tag.id);
+			const { tagikon } = makeTagikon();
+			const tag = await tagikon.addTag({ label: "tmp" });
+			await tagikon.deleteTag(tag.id);
 
-			await expect(server.editTag(tag.id, { label: "x" })).rejects.toBeInstanceOf(TagNotFoundError);
+			await expect(tagikon.editTag(tag.id, { label: "x" })).rejects.toBeInstanceOf(
+				TagNotFoundError,
+			);
 		});
 	});
 
 	suite("deleteTag", () => {
 		test("deletes a tag", async () => {
-			const { server } = makeServer();
-			const tag = await server.addTag({ label: "bye" });
-			const result = await server.deleteTag(tag.id);
+			const { tagikon } = makeTagikon();
+			const tag = await tagikon.addTag({ label: "bye" });
+			const result = await tagikon.deleteTag(tag.id);
 
 			expect(result).toBe(true);
-			expect(await server.listTags()).toHaveLength(0);
+			expect(await tagikon.listTags()).toHaveLength(0);
 		});
 
 		test("returns false for unknown id", async () => {
-			const { server } = makeServer();
-			const tag = await server.addTag({ label: "tmp" });
-			const result1 = await server.deleteTag(tag.id);
+			const { tagikon } = makeTagikon();
+			const tag = await tagikon.addTag({ label: "tmp" });
+			const result1 = await tagikon.deleteTag(tag.id);
 			expect(result1).toBe(true);
 
-			const result2 = await server.deleteTag(tag.id);
+			const result2 = await tagikon.deleteTag(tag.id);
 			expect(result2).toBe(false);
 		});
 	});
 
 	suite("tagObjects / untagObjects", () => {
 		test("tags and untags objects", async () => {
-			const { server, storage } = makeServer();
-			const tag = await server.addTag({ label: "photos" });
-			await server.tagObjects(tag.id, [objectKey("img1"), objectKey("img2")]);
+			const { tagikon, storage } = makeTagikon();
+			const tag = await tagikon.addTag({ label: "photos" });
+			await tagikon.tagObjects(tag.id, [objectKey("img1"), objectKey("img2")]);
 			expect(await storage.listTagObjects(tag.id)).toHaveLength(2);
 
-			await server.untagObjects(tag.id, [objectKey("img1")]);
+			await tagikon.untagObjects(tag.id, [objectKey("img1")]);
 			expect(await storage.listTagObjects(tag.id)).toEqual([objectKey("img2")]);
 		});
 	});
 
 	suite("resetWithTags", () => {
 		test("replaces object tags with the given set", async () => {
-			const { server, storage } = makeServer();
-			const t1 = await server.addTag({ label: "t1" });
-			const t2 = await server.addTag({ label: "t2" });
-			const t3 = await server.addTag({ label: "t3" });
+			const { tagikon, storage } = makeTagikon();
+			const t1 = await tagikon.addTag({ label: "t1" });
+			const t2 = await tagikon.addTag({ label: "t2" });
+			const t3 = await tagikon.addTag({ label: "t3" });
 
-			await server.tagObjects(t1.id, [objectKey("file")]);
-			await server.tagObjects(t2.id, [objectKey("file")]);
-			// file has t1, t2 — reset to t2, t3
-			await server.resetWithTags(objectKey("file"), [t2.id, t3.id]);
+			await tagikon.tagObjects(t1.id, [objectKey("file")]);
+			await tagikon.tagObjects(t2.id, [objectKey("file")]);
+			await tagikon.resetWithTags(objectKey("file"), [t2.id, t3.id]);
 
 			const objectTags = await storage.listObjectTags(objectKey("file"));
 			expect(objectTags).toHaveLength(2);
@@ -112,24 +113,25 @@ suite("Server", () => {
 	suite("hooks", () => {
 		test("tapRaw is called before transform with the original input", async () => {
 			const tapRaw = vi.fn();
-			const storage = new MapStorageAdapter<TagWithLabel>();
-			const server = createServer({
-				storage,
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
 				extensions: [use<TagWithLabel>({ hooks: { addTag: { tapRaw } } })],
 			});
-			await server.addTag({ label: "observe" });
-			expect(tapRaw).toHaveBeenCalledWith(expect.objectContaining({ label: "observe" }));
+			await tagikon.addTag({ label: "observe" });
+			expect(tapRaw).toHaveBeenCalledWith(
+				expect.anything(),
+				expect.objectContaining({ label: "observe" }),
+			);
 		});
 
 		test("transform can mutate the input before storage write", async () => {
-			const storage = new MapStorageAdapter<TagWithLabel>();
-			const server = createServer({
-				storage,
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
 				extensions: [
 					use<TagWithLabel>({
 						hooks: {
 							addTag: {
-								transform(input) {
+								transform(_ctx, input) {
 									return { ...input, label: input.label.toUpperCase() };
 								},
 							},
@@ -137,19 +139,18 @@ suite("Server", () => {
 					}),
 				],
 			});
-			const tag = await server.addTag({ label: "hello" });
+			const tag = await tagikon.addTag({ label: "hello" });
 			expect(tag.label).toBe("HELLO");
 		});
 
 		test("after hook receives the transformed input and created tag", async () => {
 			const after = vi.fn();
-			const storage = new MapStorageAdapter<TagWithLabel>();
-			const server = createServer({
-				storage,
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
 				extensions: [use<TagWithLabel>({ hooks: { addTag: { after } } })],
 			});
-			const tag = await server.addTag({ label: "hook-test" });
-			expect(after).toHaveBeenCalledWith(expect.anything(), tag);
+			const tag = await tagikon.addTag({ label: "hook-test" });
+			expect(after).toHaveBeenCalledWith(expect.anything(), expect.anything(), tag);
 		});
 	});
 
@@ -157,7 +158,6 @@ suite("Server", () => {
 		const MY_EXTENSION_NS: unique symbol = Symbol("my-extension");
 
 		test("exposes custom API under the extension namespace symbol", async () => {
-			const storage = new MapStorageAdapter();
 			const extension: Extension<Tag, typeof MY_EXTENSION_NS, { greet(): string }> = {
 				namespace: MY_EXTENSION_NS,
 				api: {
@@ -166,12 +166,14 @@ suite("Server", () => {
 					},
 				},
 			};
-			const server = createServer({ storage, extensions: [use(extension)] });
-			expect(server[MY_EXTENSION_NS].greet()).toBe("hello");
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter(),
+				extensions: [use(extension)],
+			});
+			expect(tagikon[MY_EXTENSION_NS].greet()).toBe("hello");
 		});
 
 		test("custom API receives ctx with storage access", async () => {
-			const storage = new MapStorageAdapter();
 			const extension: Extension<Tag, typeof MY_EXTENSION_NS, { countTags(): Promise<number> }> = {
 				namespace: MY_EXTENSION_NS,
 				permissions: { permissions: ["tag:read"] },
@@ -182,13 +184,175 @@ suite("Server", () => {
 					},
 				},
 			};
-			const server = createServer({
-				storage,
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter(),
 				extensions: [use(extension, { permissions: ["tag:read"] })],
 			});
-			await server.addTag({});
-			await server.addTag({});
-			expect(await server[MY_EXTENSION_NS].countTags()).toBe(2);
+			await tagikon.addTag({});
+			await tagikon.addTag({});
+			expect(await tagikon[MY_EXTENSION_NS].countTags()).toBe(2);
+		});
+	});
+
+	suite("nested (private) extensions", () => {
+		test("descendant extension hooks always run on root operations", async () => {
+			const upperCase: Extension<TagWithLabel> = {
+				hooks: {
+					addTag: {
+						transform(_ctx, input) {
+							return { ...input, label: input.label.toUpperCase() };
+						},
+					},
+				},
+			};
+
+			const wrapper: Extension<TagWithLabel> = {
+				extensions: [use<TagWithLabel>(upperCase)],
+			};
+
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
+				extensions: [use<TagWithLabel>(wrapper)],
+			});
+
+			const tag = await tagikon.addTag({ label: "hello" });
+			expect(tag.label).toBe("HELLO");
+		});
+
+		test("descendant extension API is accessible via ctx.api[namespace] without cast", async () => {
+			const COUNTER_NS: unique symbol = Symbol("counter");
+			interface CounterAux {
+				readonly count: number;
+			}
+			const COUNTER_KEY = tagId("singleton");
+			const counter: Extension<
+				Tag,
+				typeof COUNTER_NS,
+				{ getCount(): Promise<number> },
+				CounterAux
+			> = {
+				namespace: COUNTER_NS,
+				hooks: {
+					addTag: {
+						async after(ctx) {
+							const current = (await ctx.aux.find(COUNTER_KEY))?.count ?? 0;
+							await ctx.aux.put(COUNTER_KEY, { count: current + 1 });
+						},
+					},
+				},
+				api: {
+					async getCount(ctx) {
+						return (await ctx.aux.find(COUNTER_KEY))?.count ?? 0;
+					},
+				},
+			};
+
+			const WRAPPER_NS: unique symbol = Symbol("wrapper");
+			type CounterChildrenApi = {
+				readonly [K in typeof COUNTER_NS]: { getCount(): Promise<number> };
+			};
+			const wrapper: Extension<
+				Tag,
+				typeof WRAPPER_NS,
+				{ total(): Promise<number> },
+				unknown,
+				CounterChildrenApi
+			> = {
+				namespace: WRAPPER_NS,
+				extensions: [use(counter)],
+				api: {
+					total(ctx) {
+						return ctx.api[COUNTER_NS].getCount();
+					},
+				},
+			};
+
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter(),
+				extensions: [use(wrapper)],
+			});
+
+			await tagikon.addTag({});
+			await tagikon.addTag({});
+
+			expect(await tagikon[WRAPPER_NS].total()).toBe(2);
+		});
+
+		test("descendant namespace is NOT exposed on the top-level tagikon object", async () => {
+			const PRIVATE_NS: unique symbol = Symbol("private");
+			const privateExt: Extension<Tag, typeof PRIVATE_NS, { secret(): string }> = {
+				namespace: PRIVATE_NS,
+				api: { secret: (_ctx) => "shhh" },
+			};
+
+			type PrivateChildrenApi = {
+				readonly [K in typeof PRIVATE_NS]: { secret(): string };
+			};
+			const PUBLIC_NS: unique symbol = Symbol("public");
+			const publicExt: Extension<
+				Tag,
+				typeof PUBLIC_NS,
+				{ getSecret(): string },
+				unknown,
+				PrivateChildrenApi
+			> = {
+				namespace: PUBLIC_NS,
+				extensions: [use(privateExt)],
+				api: {
+					getSecret(ctx) {
+						return ctx.api[PRIVATE_NS].secret();
+					},
+				},
+			};
+
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter(),
+				extensions: [use(publicExt)],
+			});
+
+			expect(tagikon[PUBLIC_NS].getSecret()).toBe("shhh");
+			expect((tagikon as unknown as Record<symbol, unknown>)[PRIVATE_NS]).toBeUndefined();
+		});
+
+		test("each extension's aux is isolated from siblings", async () => {
+			const A_NS: unique symbol = Symbol("a");
+			const B_NS: unique symbol = Symbol("b");
+
+			const extA: Extension<
+				Tag,
+				typeof A_NS,
+				{ markFirst(): Promise<void>; ownAuxSize(): Promise<number> }
+			> = {
+				namespace: A_NS,
+				api: {
+					async markFirst(ctx) {
+						const tags = await ctx.storage.listTags();
+						const first = tags[0];
+						if (first) await ctx.aux.put(first.id, { who: "A" });
+					},
+					async ownAuxSize(ctx) {
+						return (await ctx.aux.list()).length;
+					},
+				},
+			};
+			const extB: Extension<Tag, typeof B_NS, { ownAuxSize(): Promise<number> }> = {
+				namespace: B_NS,
+				api: {
+					async ownAuxSize(ctx) {
+						return (await ctx.aux.list()).length;
+					},
+				},
+			};
+
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter(),
+				extensions: [use(extA), use(extB)],
+			});
+
+			await tagikon.addTag({});
+			await tagikon[A_NS].markFirst();
+			expect(await tagikon[A_NS].ownAuxSize()).toBe(1);
+			expect(await tagikon[B_NS].ownAuxSize()).toBe(0);
 		});
 	});
 
@@ -198,14 +362,13 @@ suite("Server", () => {
 		}
 
 		test("addTag propagates extension fields through transform", async () => {
-			const storage = new MapStorageAdapter<TagWithDesc>();
-			const server = createServer({
-				storage,
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter<TagWithDesc>(),
 				extensions: [
 					use<TagWithDesc>({
 						hooks: {
 							addTag: {
-								transform(input) {
+								transform(_ctx, input) {
 									return { ...input, description: input.description ?? "" };
 								},
 							},
@@ -213,7 +376,7 @@ suite("Server", () => {
 					}),
 				],
 			});
-			const tag = await server.addTag({ description: "hello" });
+			const tag = await tagikon.addTag({ description: "hello" });
 			expect(tag.description).toBe("hello");
 		});
 	});

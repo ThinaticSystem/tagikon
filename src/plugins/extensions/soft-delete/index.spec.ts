@@ -2,7 +2,7 @@ import type { TagWithSoftDelete } from "./index.ts";
 
 import { expect, suite, test } from "vitest";
 
-import { createServer } from "../../../api/server.ts";
+import { setupTagikon } from "../../../api/server.ts";
 import { objectKey } from "../../../core/ids.ts";
 import { not, tagProperty } from "../../../finder/condition.ts";
 import { MemoryFinder } from "../../../finder/memory-finder.ts";
@@ -13,8 +13,8 @@ import { SOFT_DELETE_NS, createSoftDelete } from "./index.ts";
 const setup = () => {
 	const storage = new MapStorageAdapter<TagWithSoftDelete>();
 	const extension = createSoftDelete<TagWithSoftDelete>();
-	const server = createServer({
-		storage,
+	const server = setupTagikon({
+		storageAdapter: storage,
 		extensions: [use(extension, { permissions: ["tag:read", "tag:write"] })],
 	});
 	return { storage, server };

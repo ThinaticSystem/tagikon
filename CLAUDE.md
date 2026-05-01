@@ -197,7 +197,7 @@ src/
 
 ```
 ┌─────────────────────────────────────────┐
-│              Server API                 │  ← ユーザーが呼び出す公開API
+│        Tagikon (CoreApi & 子API)        │  ← `setupTagikon({ ... })` の戻り値
 └──────────────┬──────────────────────────┘
                │ 各操作ごとにフックを実行
 ┌──────────────▼──────────────────────────┐
@@ -205,11 +205,13 @@ src/
 │  1. beforeXxx (TapRaw)                  │
 │  2. beforeXxx (Transform)               │
 │  3. beforeXxx (TapTransformed)          │
-│  4. afterXxx                            │
+│  4. TransformOutput                     │
+│  5. afterXxx                            │
 └──────────────┬──────────────────────────┘
-               │
+               │ 各 extension は自身の ctx (storage / aux / api) を保持
 ┌──────────────▼──────────────────────────┐
 │         Storage Adapter                 │  ← 差し替え可能（DB/インメモリ/etc）
+│  + getAuxStore(extId) — extension別     │
 └─────────────────────────────────────────┘
 ```
 
@@ -231,11 +233,11 @@ StorageAdapter / Server API は `TTag extends Tag` のジェネリクスで拡�
 interface TagWithDescription extends Tag {
 	readonly description: string;
 }
-const server = createServer<TagWithDescription>({ storage: new MyAdapter() });
-const tag = await server.addTag({ description: "foo" }); // tag は TagWithDescription として型付け
+const tagikon = setupTagikon<TagWithDescription>({ storageAdapter: new MyAdapter() });
+const tag = await tagikon.addTag({ description: "foo" }); // tag は TagWithDescription として型付け
 ```
 
-Custom API拡張はコンテキスト(`ctx`)を受け取れる。`ctx`は`Object.freeze()`済みで書き換え不可。
+Custom API拡張・hooks はコンテキスト(`ctx`)を受け取る。`ctx`は`Object.freeze()`済みで書き換え不可。`ctx.aux` が extension 専用 AuxStore（追加属性の private スコープ）、`ctx.api[CHILD_NS]` が子 extension のカスタム API（同じく private スコープ）。
 
 **タグ階層はコアAPIから除外されプラグインが提供する。**
 ツリー型・DAG型それぞれを別プラグインとして実装可能。
@@ -249,16 +251,16 @@ Custom API拡張はコンテキスト(`ctx`)を受け取れる。`ctx`は`Object
 
 ---
 
-## Server API 仕様
+## CoreApi 仕様（`setupTagikon` の戻り値）
 
 ### タグ操作
 
-| API                       | 説明                                                                                      |
-| ------------------------- | ----------------------------------------------------------------------------------------- |
-| `addTag(attributes)`      | タグ追加（`id` を除く全属性を渡す。extensionの transform フックで属性を補完・上書き可能） |
-| `listTags()`              | タグのフラットリストを取得（階層構造はHierarchyExtensionが提供）                          |
-| `editTag(id, patch)`      | タグ情報の編集（追加属性はextensionが提供。階層変更はHierarchyExtension経由）             |
-| `removeTag(id, options?)` | タグ削除（extension機能として削除時に対象オブジェクトへシステムタグ付与フックを呼び出す） |
+| API                  | 説明                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| `addTag(attributes)` | タグ追加（`id` を除く全属性を渡す。extensionの transform フックで属性を補完・上書き可能） |
+| `listTags()`         | タグのフラットリストを取得（階層構造はHierarchyExtensionが提供）                          |
+| `editTag(id, patch)` | タグ情報の編集（追加属性はextensionが提供。階層変更はHierarchyExtension経由）             |
+| `deleteTag(id)`      | タグ削除（extension機能として削除時に対象オブジェクトへシステムタグ付与フックを呼び出す） |
 
 ### オブジェクト操作
 
@@ -356,6 +358,18 @@ interface StorageAdapter<TTag extends Tag = Tag<TagId>> {
 	removeRelations(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void>;
 	listObjectTags(objectKey: ObjectKey): Promise<IdOf<TTag>[]>;
 	listTagObjects(tagId: IdOf<TTag>): Promise<ObjectKey[]>;
+
+	// 各 extension の追加属性を保持する private な KV ストア。
+	// 同じ symbol で複数回呼んでも同一の AuxStore を返す。
+	getAuxStore<TData = unknown>(extensionId: symbol): AuxStore<IdOf<TTag>, TData>;
+}
+
+interface AuxStore<TKey, TData> {
+	find(key: TKey): Promise<null | TData>;
+	put(key: TKey, data: TData): Promise<void>;
+	patch(key: TKey, partial: Partial<TData>): Promise<null | TData>;
+	delete(key: TKey): Promise<boolean>;
+	list(): Promise<[TKey, TData][]>;
 }
 ```
 
@@ -364,6 +378,9 @@ interface StorageAdapter<TTag extends Tag = Tag<TagId>> {
 - `name` はコアに含めない。利用者がコアを `TagWithName` で intersection 拡張して使う
 - `TId` は独立した型パラメータとせず `IdOf<T>` をインラインで使用（常に `IdOf<T>` と等価のため）
 - ID生成はアダプターが内部で行う（`IdProvider` をアダプターのコンストラクタに注入する方式）
+- **タグ自体（id・存在・公開属性）は全 extension で共有**。タグの `addTag` / `deleteTag` / `updateTag` は皆が観測可能
+- **「タグに紐づく追加属性」だけ** が extension ごとに `AuxStore` 内に隔離される。Public 登録された extension は自身の AuxStore を `api` 経由で外部に公開できるが、ネスト下の extension は親からしか触れない
+- `ExtensionContext.storage` は `getAuxStore` を見せない proxy view（`ExtensionStorageView<TTag>`）。これにより extension が他 extension の AuxStore を直接覗く経路を物理的に塞ぐ
 
 ---
 
@@ -407,47 +424,51 @@ pnpm check         # CI相当の全チェック
 
 ### 完了
 
-| ファイル                                                         | 内容                                                                                                                         |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `src/core/ids.ts`                                                | `TagId` / `ObjectKey` branded types + factory                                                                                |
-| `src/core/tag-kind.ts`                                           | `TAG_KIND` 定数 + `TagKind` 型（コア非公開・プラグイン向けユーティリティ）                                                   |
-| `src/core/tag.ts`                                                | `Tag<TId>` (default: unknown) + `IdOf<TTag>`（`name` / `kind` はコアから除外。`id` のみ）                                    |
-| `src/core/relation.ts`                                           | `TagRelation` インターフェース                                                                                               |
-| `src/core/errors.ts`                                             | `TagikonError` / `TagNotFoundError` / `TagAlreadyExistsError` / `ObjectNotTaggedError`                                       |
-| `src/plugin/storage-adapter/types.ts`                            | `StorageAdapter<TTag>` インターフェース（default: `Tag<TagId>`）                                                             |
-| `src/plugin/id-provider/types.ts`                                | `IdProvider<TId>` インターフェース（generate / serialize / deserialize）                                                     |
-| `src/plugin/extension/types.ts`                                  | `Extension<TTag>`（`hooks?:` でフックをグループ化）/ `FinderImplement<TTag>` + 各操作の Input 型エイリアス                   |
-| `src/plugin/extension/context.ts`                                | `ExtensionContext<TTag>` インターフェース + `createExtensionContext`（freeze済み）                                           |
-| `src/plugin/extension/use.ts`                                    | `use()` extension登録 + `ExtensionRegistration<TNamespace, TApi>`（Permission照合）                                          |
-| `src/plugin/extension/use.spec.ts`                               | `use()` ユニットテスト（Permission照合・frozen戻り値）                                                                       |
-| `src/plugins/storage-adapters/map-storage-adapter/index.ts`      | `MapStorageAdapter<TTag>` インメモリ参照実装（`IdProvider` 注入対応・双方向リレーション管理）                                |
-| `src/plugins/storage-adapters/map-storage-adapter/index.spec.ts` | `MapStorageAdapter` 単体テスト（カスタム `IdProvider` スイート含む）                                                         |
-| `src/hook/types.ts`                                              | `TapRawFn` / `TransformFn` / `TapTransformedFn` / `TransformOutputFn` / `AfterFn` / `HookPhases`（5フェーズ）                |
-| `src/hook/runner.ts`                                             | `collectHooks` / `runPipeline`（5フェーズ実行エンジン）                                                                      |
-| `src/finder/condition.ts`                                        | `TagCondition<TId>` discriminated union + `has` / `tagProperty` / `and` / `or` / `not` builder 関数                          |
-| `src/finder/condition.spec.ts`                                   | condition builder ユニットテスト                                                                                             |
-| `src/finder/memory-finder.ts`                                    | `MemoryFinder<TTag>` — `has` / `tag-property` / `and` / `or` / `not` を評価する `FinderImplement` 実装                       |
-| `src/finder/memory-finder.spec.ts`                               | `MemoryFinder` 統合テスト（has / and / or / not / 入れ子）                                                                   |
-| `src/api/server.ts`                                              | `Server<TTag>` インターフェース + `createServer`（全8操作）                                                                  |
-| `src/api/server.spec.ts`                                         | Server 統合テスト（フック動作・TagImplement extension含む）                                                                  |
-| `src/security/permission.ts`                                     | `Permission` / `PermissionManifest` / `PermissionMismatchError` / `hasPermission` / `assertPermission`                       |
-| `src/index.ts`                                                   | 公開エントリーポイント（上記すべてをre-export）                                                                              |
-| `src/index.spec.ts`                                              | 公開API エンドツーエンドテスト（core workflow / MemoryFinder / TagImplement / Custom API）                                   |
-| `src/plugins/id-providers/string-id-provider/index.ts`           | `stringIdProvider` — 文字列をIDとして使う `IdProvider` ヘルパー                                                              |
-| `src/plugins/id-providers/string-id-provider/index.spec.ts`      | `stringIdProvider` ユニットテスト                                                                                            |
-| `src/plugins/id-providers/uuid-id-provider/index.ts`             | `UUID_ID_PROVIDER` — UUID文字列を発行するデフォルト `IdProvider`                                                             |
-| `src/plugins/id-providers/uuid-id-provider/index.spec.ts`        | `UUID_ID_PROVIDER` ユニットテスト                                                                                            |
-| `src/plugins/extensions/soft-delete/index.ts`                    | `TagWithSoftDelete` / `createSoftDelete` / `SOFT_DELETE_NS` / `SoftDeleteApi`（StorageAdapter 実装なし）                     |
-| `src/plugins/extensions/soft-delete/index.spec.ts`               | SoftDeletePlugin 統合テスト（softDeleteTag / listSoftDeletedTags / restoreTag / relations 保持 / TagPropertyCondition 連携） |
-| `src/plugins/extensions/default-attributes/index.ts`             | `createDefaultAttributes` — addTag 時に不在属性をプロバイダー関数で補完する組み込み拡張                                      |
-| `src/plugins/extensions/default-attributes/index.spec.ts`        | `createDefaultAttributes` ユニットテスト（デフォルト補完・優先順位・プロバイダー毎回評価）                                   |
+| ファイル                                                         | 内容                                                                                                                                                     |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/core/ids.ts`                                                | `TagId` / `ObjectKey` branded types + factory                                                                                                            |
+| `src/core/tag-kind.ts`                                           | `TAG_KIND` 定数 + `TagKind` 型（コア非公開・プラグイン向けユーティリティ）                                                                               |
+| `src/core/tag.ts`                                                | `Tag<TId>` (default: unknown) + `IdOf<TTag>`（`name` / `kind` はコアから除外。`id` のみ）                                                                |
+| `src/core/relation.ts`                                           | `TagRelation` インターフェース                                                                                                                           |
+| `src/core/errors.ts`                                             | `TagikonError` / `TagNotFoundError` / `TagAlreadyExistsError` / `ObjectNotTaggedError`                                                                   |
+| `src/plugin/storage-adapter/types.ts`                            | `StorageAdapter<TTag>` インターフェース（default: `Tag<TagId>`）+ `getAuxStore(extensionId): AuxStore`                                                   |
+| `src/plugin/storage-adapter/aux-store.ts`                        | `AuxStore<TKey, TData>` インターフェース（get / set / patch / delete / list）                                                                            |
+| `src/plugin/id-provider/types.ts`                                | `IdProvider<TId>` インターフェース（generate / serialize / deserialize）                                                                                 |
+| `src/plugin/extension/types.ts`                                  | `Extension<TTag, TNamespace, TApi, TAux, TChildrenApi>`（`hooks?:`・`extensions?:`）/ `ExtensionRegistration` / `FinderImplement` / `ChildrenApiOf`      |
+| `src/plugin/extension/context.ts`                                | `ExtensionContext<TTag, TAux, TChildrenApi>`（`storage` + `aux` 専用 AuxStore + `api` 子 API map）+ `ExtensionStorageView` (storage の getAuxStore 隠蔽) |
+| `src/plugin/extension/factory.ts`                                | `createExtension(...)` factory（root/children 共通の extension 構築 API。`Object.freeze` 済みの Extension を返す）                                       |
+| `src/plugin/extension/use.ts`                                    | `use()` extension登録 + Permission照合（`ExtensionRegistration` は types.ts からre-export）                                                              |
+| `src/plugin/extension/use.spec.ts`                               | `use()` ユニットテスト（Permission照合・frozen戻り値）                                                                                                   |
+| `src/plugins/storage-adapters/map-storage-adapter/index.ts`      | `MapStorageAdapter<TTag>` インメモリ参照実装（`IdProvider` 注入対応・双方向リレーション管理）                                                            |
+| `src/plugins/storage-adapters/map-storage-adapter/index.spec.ts` | `MapStorageAdapter` 単体テスト（カスタム `IdProvider` スイート含む）                                                                                     |
+| `src/hook/types.ts`                                              | `TapRawFn<TCtx,...>` / `TransformFn` / `TapTransformedFn` / `TransformOutputFn` / `AfterFn` / `HookPhases`（5フェーズ・全fn が `ctx` を第1引数に取る）   |
+| `src/hook/runner.ts`                                             | `collectHooks(entries)` / `runPipeline`（5フェーズ実行エンジン・各 entry が独自 ctx を保持）                                                             |
+| `src/finder/condition.ts`                                        | `TagCondition<TId>` discriminated union + `has` / `tagProperty` / `and` / `or` / `not` builder 関数                                                      |
+| `src/finder/condition.spec.ts`                                   | condition builder ユニットテスト                                                                                                                         |
+| `src/finder/memory-finder.ts`                                    | `MemoryFinder<TTag>` — `has` / `tag-property` / `and` / `or` / `not` を評価する `FinderImplement` 実装                                                   |
+| `src/finder/memory-finder.spec.ts`                               | `MemoryFinder` 統合テスト（has / and / or / not / 入れ子）                                                                                               |
+| `src/api/server.ts`                                              | `CoreApi<TTag>` インターフェース + `setupTagikon({ storageAdapter, extensions })`（全8操作・拡張ツリー再帰展開・per-extension ctx + AuxStore bind）      |
+| `src/api/server.spec.ts`                                         | setupTagikon 統合テスト（フック動作・TagImplement / Custom API / nested extensions / aux 隔離）                                                          |
+| `src/security/permission.ts`                                     | `Permission` / `PermissionManifest` / `PermissionMismatchError` / `hasPermission` / `assertPermission`                                                   |
+| `src/index.ts`                                                   | 公開エントリーポイント（上記すべてをre-export）                                                                                                          |
+| `src/index.spec.ts`                                              | 公開API エンドツーエンドテスト（core workflow / MemoryFinder / TagImplement / Custom API）                                                               |
+| `src/plugins/id-providers/string-id-provider/index.ts`           | `stringIdProvider` — 文字列をIDとして使う `IdProvider` ヘルパー                                                                                          |
+| `src/plugins/id-providers/string-id-provider/index.spec.ts`      | `stringIdProvider` ユニットテスト                                                                                                                        |
+| `src/plugins/id-providers/uuid-id-provider/index.ts`             | `UUID_ID_PROVIDER` — UUID文字列を発行するデフォルト `IdProvider`                                                                                         |
+| `src/plugins/id-providers/uuid-id-provider/index.spec.ts`        | `UUID_ID_PROVIDER` ユニットテスト                                                                                                                        |
+| `src/plugins/extensions/soft-delete/index.ts`                    | `TagWithSoftDelete` / `createSoftDelete` / `SOFT_DELETE_NS` / `SoftDeleteApi`（StorageAdapter 実装なし）                                                 |
+| `src/plugins/extensions/soft-delete/index.spec.ts`               | SoftDeletePlugin 統合テスト（softDeleteTag / listSoftDeletedTags / restoreTag / relations 保持 / TagPropertyCondition 連携）                             |
+| `src/plugins/extensions/default-attributes/index.ts`             | `createDefaultAttributes` — addTag 時に不在属性をプロバイダー関数で補完する組み込み拡張                                                                  |
+| `src/plugins/extensions/default-attributes/index.spec.ts`        | `createDefaultAttributes` ユニットテスト（デフォルト補完・優先順位・プロバイダー毎回評価）                                                               |
 
 ### 未実装（次に着手）
 
-- **extensionの再帰登録** — extension Aが extension B に依存したい場合に、Aの登録関数内でBを登録して呼び出せるようにする（`use()`の中でさらに`use()`）
+- **`src/api/server.ts`の移動** — `src/factory.ts` へ変更
+- **`namespace`必須化**: `namespace` 指定がない場合throw。
 
-  ただし extension 内で登録されたBは他の extension やユーザーコードからは見えない（Aの内部実装の一部）という扱いにする  
-  Private Contextを用意して、そこにAPIを登録する方針
+  `NamespaceNotFoundError` → `IllegalExtensionDefinitionError` → `ExtensionError` → `TagikonError` として実装する。
+
+  また、既存の各種エラーも上記のような粒度で整理
 
 - **タグの階層構造** — ディレクトリを表現するためのプラグイン。`HierarchyPlugin` として実装する。
 
@@ -466,3 +487,7 @@ pnpm check         # CI相当の全チェック
 ### 未確定事項（設計中）
 
 - **タグの使用回数カウント（usage count）** — コアに持つか、Storage Adapterの集計クエリとして提供するか（どちらにせよプラグインで提供する方向）
+- **タグオブジェクトやauxのシリアライズ** — Storage への保存/読み込み時にどんなオブジェクトでも Serialize/Deserialize できる必要があるので、Serializer/Deserializer 実装をプラグインが実装できる (必須？)ようにする
+
+  デフォルト (Serializerの指定がない場合)では JSON.stringify / JSON.parse を使うが、ユーザーが独自のシリアライズロジックを提供できるようにするという作戦もあるが、  
+  シリアライズできないエラーは実行時にしかわからないためやや危険。

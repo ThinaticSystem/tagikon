@@ -1,8 +1,10 @@
 import type { Tag } from "../../core/tag.ts";
 import type { Permission } from "../../security/permission.ts";
-import type { ApiShape, Extension } from "./types.ts";
+import type { ApiShape, Extension, ExtensionRegistration } from "./types.ts";
 
 import { PermissionMismatchError } from "../../security/permission.ts";
+
+export type { ExtensionRegistration } from "./types.ts";
 
 export interface UseOptions {
 	/**
@@ -12,22 +14,14 @@ export interface UseOptions {
 	readonly permissions: readonly Permission[];
 }
 
-export interface ExtensionRegistration<
-	TNamespace extends symbol = never,
-	TApi extends ApiShape = Record<never, never>,
-> {
-	// TTag is erased here; use() verifies compatibility at the call site
-	readonly extension: Extension<Tag, TNamespace, TApi>;
-	readonly namespace: null | TNamespace;
-	readonly permissions: ReadonlySet<Permission>;
-}
-
 export const use = <
 	TTag extends Tag,
 	TNamespace extends symbol = never,
 	TApi extends ApiShape = Record<never, never>,
+	TAux = unknown,
+	TChildrenApi = Record<never, never>,
 >(
-	extension: Extension<TTag, TNamespace, TApi>,
+	extension: Extension<TTag, TNamespace, TApi, TAux, TChildrenApi>,
 	options?: UseOptions,
 ): ExtensionRegistration<TNamespace, TApi> => {
 	const declared = new Set(extension.permissions?.permissions ?? []);

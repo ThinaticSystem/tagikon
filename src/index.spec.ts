@@ -4,12 +4,12 @@ import { expect, suite, test } from "vitest";
 
 import {
 	and,
-	createServer,
 	has,
 	MapStorageAdapter,
 	MemoryFinder,
 	not,
 	objectKey,
+	setupTagikon,
 	TagikonError,
 	use,
 } from "./index.ts";
@@ -21,38 +21,38 @@ interface TagWithName extends Tag {
 suite("Public API", () => {
 	suite("core workflow", () => {
 		test("creates and lists tags", async () => {
-			const server = createServer({ storage: new MapStorageAdapter<TagWithName>() });
+			const tagikon = setupTagikon({ storageAdapter: new MapStorageAdapter<TagWithName>() });
 
-			const work = await server.addTag({ name: "work" });
-			const personal = await server.addTag({ name: "personal" });
+			const work = await tagikon.addTag({ name: "work" });
+			const personal = await tagikon.addTag({ name: "personal" });
 
 			expect(work.name).toBe("work");
 			expect(personal.name).toBe("personal");
 
-			expect(await server.listTags()).toHaveLength(2);
+			expect(await tagikon.listTags()).toHaveLength(2);
 		});
 
 		test("returns false on delete of nonexistent tag", async () => {
-			const server = createServer({ storage: new MapStorageAdapter<TagWithName>() });
+			const tagikon = setupTagikon({ storageAdapter: new MapStorageAdapter<TagWithName>() });
 
-			const tag = await server.addTag({ name: "tmp" });
+			const tag = await tagikon.addTag({ name: "tmp" });
 
 			// Delete existing tag
-			const isDeleted = await server.deleteTag(tag.id);
+			const isDeleted = await tagikon.deleteTag(tag.id);
 			expect(isDeleted).toBe(true);
 
 			// Deleting again should return false, since the tag is already gone
-			const isDeletedAgain = await server.deleteTag(tag.id);
+			const isDeletedAgain = await tagikon.deleteTag(tag.id);
 			expect(isDeletedAgain).toBe(false);
 		});
 
 		test("library errors are instanceof TagikonError", async () => {
-			const server = createServer({ storage: new MapStorageAdapter() });
+			const tagikon = setupTagikon({ storageAdapter: new MapStorageAdapter() });
 
-			const tag = await server.addTag({});
-			await server.deleteTag(tag.id);
+			const tag = await tagikon.addTag({});
+			await tagikon.deleteTag(tag.id);
 
-			await expect(server.editTag(tag.id, { name: "y" })).rejects.toBeInstanceOf(TagikonError);
+			await expect(tagikon.editTag(tag.id, { name: "y" })).rejects.toBeInstanceOf(TagikonError);
 		});
 	});
 
@@ -67,40 +67,40 @@ suite("Public API", () => {
 			const extension: Extension<TagWithName> = {
 				finder: new MemoryFinder(),
 			};
-			const server = createServer({
-				storage,
+			const tagikon = setupTagikon({
+				storageAdapter: storage,
 				extensions: [use(extension)],
 			});
 
-			const work = await server.addTag({ name: "work" });
-			const personal = await server.addTag({ name: "personal" });
-			const urgent = await server.addTag({ name: "urgent" });
+			const work = await tagikon.addTag({ name: "work" });
+			const personal = await tagikon.addTag({ name: "personal" });
+			const urgent = await tagikon.addTag({ name: "urgent" });
 
-			await server.tagObjects(work.id, [objectKey("doc1"), objectKey("doc2")]);
-			await server.tagObjects(personal.id, [objectKey("doc2"), objectKey("doc3")]);
-			await server.tagObjects(urgent.id, [objectKey("doc1")]);
+			await tagikon.tagObjects(work.id, [objectKey("doc1"), objectKey("doc2")]);
+			await tagikon.tagObjects(personal.id, [objectKey("doc2"), objectKey("doc3")]);
+			await tagikon.tagObjects(urgent.id, [objectKey("doc1")]);
 
-			return { server, work, personal, urgent };
+			return { tagikon, work, personal, urgent };
 		};
 
 		test("has: returns objects with the given tag", async () => {
-			const { server, work } = await setupFindScenario();
-			const result = await server.findObjectsByTags(has(work.id));
+			const { tagikon, work } = await setupFindScenario();
+			const result = await tagikon.findObjectsByTags(has(work.id));
 			expect(result).toHaveLength(2);
 			expect(result).toContain(objectKey("doc1"));
 			expect(result).toContain(objectKey("doc2"));
 		});
 
 		test("and: intersection of tag-matched objects", async () => {
-			const { server, work, urgent } = await setupFindScenario();
-			const result = await server.findObjectsByTags(and([has(work.id), has(urgent.id)]));
+			const { tagikon, work, urgent } = await setupFindScenario();
+			const result = await tagikon.findObjectsByTags(and([has(work.id), has(urgent.id)]));
 			expect(result).toHaveLength(1);
 			expect(result).toContain(objectKey("doc1"));
 		});
 
 		test("not: excludes matched objects", async () => {
-			const { server, work } = await setupFindScenario();
-			const result = await server.findObjectsByTags(not(has(work.id)));
+			const { tagikon, work } = await setupFindScenario();
+			const result = await tagikon.findObjectsByTags(not(has(work.id)));
 			expect(result).toHaveLength(1);
 			expect(result).toContain(objectKey("doc3"));
 		});
@@ -113,13 +113,13 @@ suite("Public API", () => {
 
 		test("extended tag fields are preserved through addTag", async () => {
 			const storage = new MapStorageAdapter<TagWithNote>();
-			const server = createServer({
-				storage,
+			const tagikon = setupTagikon({
+				storageAdapter: storage,
 				extensions: [
 					use<TagWithNote>({
 						hooks: {
 							addTag: {
-								transform(input) {
+								transform(_ctx, input) {
 									return { ...input, note: input.note ?? "" };
 								},
 							},
@@ -127,7 +127,7 @@ suite("Public API", () => {
 					}),
 				],
 			});
-			const tag = await server.addTag({ note: "important" });
+			const tag = await tagikon.addTag({ note: "important" });
 			expect(tag.note).toBe("important");
 		});
 	});
@@ -151,17 +151,17 @@ suite("Public API", () => {
 				},
 			};
 			const storage = new MapStorageAdapter();
-			const server = createServer({
-				storage,
+			const tagikon = setupTagikon({
+				storageAdapter: storage,
 				extensions: [
 					use(extension, {
 						permissions: ["tag:read"],
 					}),
 				],
 			});
-			await server.addTag({});
-			await server.addTag({});
-			expect(await server[STATS_NS].tagCount()).toBe(2);
+			await tagikon.addTag({});
+			await tagikon.addTag({});
+			expect(await tagikon[STATS_NS].tagCount()).toBe(2);
 		});
 	});
 });

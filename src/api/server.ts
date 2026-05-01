@@ -1,33 +1,21 @@
 import type { ObjectKey } from "../core/ids.ts";
 import type { IdOf, Tag } from "../core/tag.ts";
 import type { TagCondition } from "../finder/condition.ts";
-import type { ExtensionContext } from "../plugin/extension/context.ts";
-import type { ApiShape, Extension } from "../plugin/extension/types.ts";
-import type { ExtensionRegistration } from "../plugin/extension/use.ts";
+import type { HookEntry } from "../hook/runner.ts";
+import type { ExtensionStorageView } from "../plugin/extension/context.ts";
+import type {
+	ApiShape,
+	ChildrenApiOf,
+	Extension,
+	ExtensionRegistration,
+	FinderImplement,
+} from "../plugin/extension/types.ts";
 import type { StorageAdapter } from "../plugin/storage-adapter/types.ts";
 
 import { collectHooks, runPipeline } from "../hook/runner.ts";
 import { createExtensionContext } from "../plugin/extension/context.ts";
 
-//#region Type-level API merging
-type UnionToIntersection<TUnion> = (TUnion extends unknown ? (x: TUnion) => void : never) extends (
-	x: infer TIntersect,
-) => void
-	? TIntersect
-	: never;
-
-type ApiOf<TRegistration> =
-	TRegistration extends ExtensionRegistration<infer TNamespace, infer TApi>
-		? { readonly [TKey in TNamespace]: TApi }
-		: Record<never, never>;
-
-type MergeApis<TRegistrations extends readonly unknown[]> = UnionToIntersection<
-	ApiOf<TRegistrations[number]>
->;
-// #endregion
-
-// TODO: `CoreApi` に改名
-export interface Server<TTag extends Tag> {
+export interface CoreApi<TTag extends Tag> {
 	addTag(attributes: Omit<TTag, "id">): Promise<TTag>;
 	listTags(): Promise<TTag[]>;
 	editTag(id: IdOf<TTag>, patch: Partial<Omit<TTag, "id">>): Promise<TTag>;
@@ -38,122 +26,234 @@ export interface Server<TTag extends Tag> {
 	findObjectsByTags(query: TagCondition<IdOf<TTag>>): Promise<ObjectKey[]>;
 }
 
-export interface ServerOptions<
+export interface SetupTagikonOptions<
 	TTag extends Tag,
 	TRegistrations extends readonly ExtensionRegistration<symbol, ApiShape>[] = readonly [],
 > {
-	storage: StorageAdapter<TTag>;
+	storageAdapter: StorageAdapter<TTag>;
+	/**
+	 * Extensions registered at the root. Each entry is exposed on the returned
+	 * Tagikon object under its namespace symbol; their descendants stay private.
+	 */
 	extensions?: TRegistrations;
 }
 
-// TODO: `setupTagikon` に改名
-export const createServer = <
+// Internal: storage view that hides getAuxStore from extensions.
+const wrapStorageForExtensions = <TTag extends Tag>(
+	storage: StorageAdapter<TTag>,
+): ExtensionStorageView<TTag> => ({
+	createTag: storage.createTag.bind(storage),
+	getTag: storage.getTag.bind(storage),
+	listTags: storage.listTags.bind(storage),
+	updateTag: storage.updateTag.bind(storage),
+	deleteTag: storage.deleteTag.bind(storage),
+	addRelations: storage.addRelations.bind(storage),
+	removeRelations: storage.removeRelations.bind(storage),
+	listObjectTags: storage.listObjectTags.bind(storage),
+	listTagObjects: storage.listTagObjects.bind(storage),
+});
+
+type AnyExtension<TTag extends Tag> = Extension<TTag, symbol, ApiShape>;
+type BoundApi = Record<string, (...args: readonly unknown[]) => unknown>;
+type AnyHookEntry = HookEntry<unknown, unknown, unknown>;
+
+interface OperationHookEntries {
+	addTag: AnyHookEntry[];
+	listTags: AnyHookEntry[];
+	editTag: AnyHookEntry[];
+	removeTag: AnyHookEntry[];
+	tagObjects: AnyHookEntry[];
+	untagObjects: AnyHookEntry[];
+	resetWithTags: AnyHookEntry[];
+	findObjectsByTags: AnyHookEntry[];
+}
+
+const operationKeys = [
+	"addTag",
+	"listTags",
+	"editTag",
+	"removeTag",
+	"tagObjects",
+	"untagObjects",
+	"resetWithTags",
+	"findObjectsByTags",
+] as const satisfies readonly (keyof OperationHookEntries)[];
+
+const emptyHookEntries = (): OperationHookEntries => ({
+	addTag: [],
+	listTags: [],
+	editTag: [],
+	removeTag: [],
+	tagObjects: [],
+	untagObjects: [],
+	resetWithTags: [],
+	findObjectsByTags: [],
+});
+
+interface ExtensionBinding {
+	readonly boundApi: BoundApi;
+}
+
+export const setupTagikon = <
 	TTag extends Tag,
 	TRegistrations extends readonly ExtensionRegistration<symbol, ApiShape>[] = readonly [],
 >(
-	options: ServerOptions<TTag, TRegistrations>,
-): Server<TTag> & MergeApis<TRegistrations> => {
-	const { storage, extensions: registrations = [] as unknown as TRegistrations } = options;
+	options: SetupTagikonOptions<TTag, TRegistrations>,
+): CoreApi<TTag> & ChildrenApiOf<TRegistrations> => {
+	const { storageAdapter, extensions: rootRegistrations = [] as unknown as TRegistrations } =
+		options;
+	const storageView = wrapStorageForExtensions(storageAdapter);
 
-	// Cast to TTag: use() verified compatibility at the call site
-	const extensions = registrations.map(
-		(r) => r.extension as unknown as Extension<TTag, symbol, ApiShape>,
-	);
+	let anonymousSequence = 0;
+	const allocateSymbolFor = (ext: AnyExtension<TTag>): symbol =>
+		ext.namespace ?? Symbol(`$anonymous-extension-${anonymousSequence++}`);
 
-	const addTagHooks = collectHooks(extensions.map((p) => p.hooks?.addTag));
-	const listTagsHooks = collectHooks(extensions.map((p) => p.hooks?.listTags));
-	const editTagHooks = collectHooks(extensions.map((p) => p.hooks?.editTag));
-	const removeTagHooks = collectHooks(extensions.map((p) => p.hooks?.removeTag));
-	const tagObjectsHooks = collectHooks(extensions.map((p) => p.hooks?.tagObjects));
-	const untagObjectsHooks = collectHooks(extensions.map((p) => p.hooks?.untagObjects));
-	const resetWithTagsHooks = collectHooks(extensions.map((p) => p.hooks?.resetWithTags));
-	const findObjectsByTagsHooks = collectHooks(extensions.map((p) => p.hooks?.findObjectsByTags));
+	const allHookEntries = emptyHookEntries();
 
-	const finder = extensions.find((p) => p.finder)?.finder;
+	// Walk an extension and all of its descendants. For each one: build its ctx
+	// (with its own AuxStore and its children's bound APIs), bind its custom api
+	// methods, and append its hook entries for every operation.
+	const buildBinding = (ext: AnyExtension<TTag>): ExtensionBinding => {
+		const childrenBoundApiMap: Record<symbol, BoundApi> = {};
 
-	const server: Server<TTag> = {
+		for (const childRegistration of ext.extensions ?? []) {
+			const childExtension = childRegistration.extension as unknown as AnyExtension<TTag>;
+			const childBinding = buildBinding(childExtension);
+			if (childRegistration.namespace) {
+				childrenBoundApiMap[childRegistration.namespace] = childBinding.boundApi;
+			}
+		}
+
+		const extensionSymbol = allocateSymbolFor(ext);
+		const aux = storageAdapter.getAuxStore<unknown>(extensionSymbol);
+		const ctx = createExtensionContext<TTag, unknown, Record<symbol, BoundApi>>(
+			storageView,
+			aux,
+			childrenBoundApiMap,
+		);
+
+		const boundApi: BoundApi = {};
+		if (ext.api) {
+			const apiImpls = ext.api as unknown as Record<
+				string,
+				(ctx: unknown, ...args: readonly unknown[]) => unknown
+			>;
+			for (const key of Object.keys(apiImpls)) {
+				const method = apiImpls[key];
+				if (method) boundApi[key] = (...args) => method(ctx, ...args);
+			}
+		}
+
+		for (const operation of operationKeys) {
+			const phases = ext.hooks?.[operation];
+			if (phases) {
+				allHookEntries[operation].push({
+					ctx: ctx as unknown,
+					phases: phases as unknown,
+				} as HookEntry<unknown, unknown, unknown>);
+			}
+		}
+
+		return { boundApi };
+	};
+
+	// Top-level: build each registered extension's binding and expose at the namespaced key.
+	const namespacedApis: Record<symbol, BoundApi> = {};
+	for (const childRegistration of rootRegistrations) {
+		const childExtension = childRegistration.extension as unknown as AnyExtension<TTag>;
+		const childBinding = buildBinding(childExtension);
+		if (childRegistration.namespace) {
+			namespacedApis[childRegistration.namespace] = childBinding.boundApi;
+		}
+	}
+
+	// Finder lookup: depth-first across the whole tree, first match wins.
+	const findFinder = (
+		registrations: readonly ExtensionRegistration<symbol, ApiShape>[],
+	): null | FinderImplement<TTag> => {
+		for (const registration of registrations) {
+			const ext = registration.extension as unknown as AnyExtension<TTag>;
+			if (ext.finder) return ext.finder;
+		}
+		for (const registration of registrations) {
+			const ext = registration.extension as unknown as AnyExtension<TTag>;
+			const found = findFinder(ext.extensions ?? []);
+			if (found) return found;
+		}
+		return null;
+	};
+	const finder = findFinder(rootRegistrations);
+
+	const addTagHooks = collectHooks(allHookEntries.addTag);
+	const listTagsHooks = collectHooks(allHookEntries.listTags);
+	const editTagHooks = collectHooks(allHookEntries.editTag);
+	const removeTagHooks = collectHooks(allHookEntries.removeTag);
+	const tagObjectsHooks = collectHooks(allHookEntries.tagObjects);
+	const untagObjectsHooks = collectHooks(allHookEntries.untagObjects);
+	const resetWithTagsHooks = collectHooks(allHookEntries.resetWithTags);
+	const findObjectsByTagsHooks = collectHooks(allHookEntries.findObjectsByTags);
+
+	const coreApi: CoreApi<TTag> = {
 		async addTag(attributes) {
-			return runPipeline(addTagHooks, attributes, (data) => storage.createTag(data));
+			return runPipeline(addTagHooks, attributes, (data) =>
+				storageAdapter.createTag(data as Omit<TTag, "id">),
+			) as Promise<TTag>;
 		},
-
 		async listTags() {
-			return runPipeline(listTagsHooks, {}, () => storage.listTags());
+			return runPipeline(listTagsHooks, {}, () => storageAdapter.listTags()) as Promise<TTag[]>;
 		},
-
 		async editTag(id, patch) {
-			const rawInput = { id, patch };
-			return runPipeline(editTagHooks, rawInput, ({ id, patch }) => storage.updateTag(id, patch));
+			return runPipeline(editTagHooks, { id, patch }, (input) => {
+				const typed = input as { id: IdOf<TTag>; patch: Partial<Omit<TTag, "id">> };
+				return storageAdapter.updateTag(typed.id, typed.patch);
+			}) as Promise<TTag>;
 		},
-
 		async deleteTag(id) {
-			const rawInput = { id };
-			return runPipeline(removeTagHooks, rawInput, ({ id }) => storage.deleteTag(id));
+			return runPipeline(removeTagHooks, { id }, (input) =>
+				storageAdapter.deleteTag((input as { id: IdOf<TTag> }).id),
+			) as Promise<boolean>;
 		},
-
 		async tagObjects(tagId, objectKeys) {
-			const rawInput = { tagId, objectKeys };
-			await runPipeline(tagObjectsHooks, rawInput, ({ tagId, objectKeys }) =>
-				storage.addRelations(tagId, objectKeys),
-			);
+			await runPipeline(tagObjectsHooks, { tagId, objectKeys }, (input) => {
+				const typed = input as {
+					tagId: IdOf<TTag>;
+					objectKeys: readonly ObjectKey[];
+				};
+				return storageAdapter.addRelations(typed.tagId, typed.objectKeys);
+			});
 		},
-
 		async untagObjects(tagId, objectKeys) {
-			const rawInput = { tagId, objectKeys };
-			await runPipeline(untagObjectsHooks, rawInput, ({ tagId, objectKeys }) =>
-				storage.removeRelations(tagId, objectKeys),
-			);
+			await runPipeline(untagObjectsHooks, { tagId, objectKeys }, (input) => {
+				const typed = input as {
+					tagId: IdOf<TTag>;
+					objectKeys: readonly ObjectKey[];
+				};
+				return storageAdapter.removeRelations(typed.tagId, typed.objectKeys);
+			});
 		},
-
 		async resetWithTags(objectKey, tagIds) {
-			const rawInput = { objectKey, tagIds };
-			await runPipeline(resetWithTagsHooks, rawInput, async ({ objectKey, tagIds }) => {
-				const currentIds = await storage.listObjectTags(objectKey);
-				const newTagIdSet = new Set<IdOf<TTag>>(tagIds);
-				const currentTagIdSet = new Set<IdOf<TTag>>(currentIds);
-
-				const toAdd = tagIds.filter((id) => !currentTagIdSet.has(id));
-				const toRemove = currentIds.filter((id) => !newTagIdSet.has(id));
-
-				for (const tid of toAdd) {
-					await storage.addRelations(tid, [objectKey]);
-				}
-				for (const tid of toRemove) {
-					await storage.removeRelations(tid, [objectKey]);
-				}
+			await runPipeline(resetWithTagsHooks, { objectKey, tagIds }, async (input) => {
+				const typed = input as {
+					objectKey: ObjectKey;
+					tagIds: readonly IdOf<TTag>[];
+				};
+				const currentIds = await storageAdapter.listObjectTags(typed.objectKey);
+				const newSet = new Set<IdOf<TTag>>(typed.tagIds);
+				const currentSet = new Set<IdOf<TTag>>(currentIds);
+				const toAdd = typed.tagIds.filter((id) => !currentSet.has(id));
+				const toRemove = currentIds.filter((id) => !newSet.has(id));
+				for (const tid of toAdd) await storageAdapter.addRelations(tid, [typed.objectKey]);
+				for (const tid of toRemove) await storageAdapter.removeRelations(tid, [typed.objectKey]);
 			});
 		},
-
 		async findObjectsByTags(query) {
-			const rawInput = { query };
-			return runPipeline(findObjectsByTagsHooks, rawInput, ({ query }) => {
-				if (!finder) return Promise.resolve([]);
-				return finder.findObjectsByTags(query, storage);
-			});
+			return runPipeline(findObjectsByTagsHooks, { query }, (input) => {
+				const typed = input as { query: TagCondition<IdOf<TTag>> };
+				if (!finder) return Promise.resolve([] as ObjectKey[]);
+				return finder.findObjectsByTags(typed.query, storageAdapter);
+			}) as Promise<ObjectKey[]>;
 		},
 	};
 
-	// Register namespaced APIs
-	const namespacedApis: Record<
-		symbol,
-		Record<string, (...args: readonly unknown[]) => unknown>
-	> = {};
-	for (const registration of registrations) {
-		if (!registration.extension.api || !registration.namespace) continue;
-
-		const ctx = createExtensionContext(storage);
-		const api = registration.extension.api as Record<
-			string,
-			(ctx: ExtensionContext<TTag>, ...args: readonly unknown[]) => unknown
-		>;
-		const nsApi: Record<string, (...args: readonly unknown[]) => unknown> = {};
-		for (const key of Object.keys(api)) {
-			const method = api[key];
-			if (method) {
-				nsApi[key] = (...args) => method(ctx, ...args);
-			}
-		}
-		namespacedApis[registration.namespace] = nsApi;
-	}
-
-	return Object.assign(server, namespacedApis) as Server<TTag> & MergeApis<TRegistrations>;
+	return Object.assign(coreApi, namespacedApis) as CoreApi<TTag> & ChildrenApiOf<TRegistrations>;
 };

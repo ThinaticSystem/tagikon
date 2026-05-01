@@ -10,7 +10,7 @@ export const createDefaultAttributes = <TTag extends Tag>(
 ): Extension<TTag> => ({
 	hooks: {
 		addTag: {
-			transform: (input) => {
+			transform: (_ctx, input) => {
 				const result: Record<string, unknown> = { ...input };
 				for (const key of Object.keys(providers)) {
 					if (!(key in result)) {

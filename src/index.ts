@@ -1,5 +1,5 @@
-export { createServer } from "./api/server.ts";
-export type { Server, ServerOptions } from "./api/server.ts";
+export { setupTagikon } from "./api/server.ts";
+export type { CoreApi, SetupTagikonOptions } from "./api/server.ts";
 export {
 	ObjectNotTaggedError,
 	TagAlreadyExistsError,
@@ -29,10 +29,12 @@ export type {
 	TransformOutputFn,
 } from "./hook/types.ts";
 export { createExtensionContext } from "./plugin/extension/context.ts";
-export type { ExtensionContext } from "./plugin/extension/context.ts";
+export type { ExtensionContext, ExtensionStorageView } from "./plugin/extension/context.ts";
+export { createExtension } from "./plugin/extension/factory.ts";
 export type {
 	AddTagInput,
 	ApiShape,
+	ChildrenApiOf,
 	EditTagInput,
 	Extension,
 	FindObjectsByTagsInput,
@@ -46,6 +48,7 @@ export type {
 export { use } from "./plugin/extension/use.ts";
 export type { ExtensionRegistration } from "./plugin/extension/use.ts";
 export type { IdProvider } from "./plugin/id-provider/types.ts";
+export type { AuxStore } from "./plugin/storage-adapter/aux-store.ts";
 export type { StorageAdapter } from "./plugin/storage-adapter/types.ts";
 export { createDefaultAttributes } from "./plugins/extensions/default-attributes/index.ts";
 export type { AttributeProviders } from "./plugins/extensions/default-attributes/index.ts";

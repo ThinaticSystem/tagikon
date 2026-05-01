@@ -1,6 +1,7 @@
 import type { ObjectKey, TagId } from "../../../core/ids.ts";
 import type { IdOf, Tag } from "../../../core/tag.ts";
 import type { IdProvider } from "../../../plugin/id-provider/types.ts";
+import type { AuxStore } from "../../../plugin/storage-adapter/aux-store.ts";
 import type { StorageAdapter } from "../../../plugin/storage-adapter/types.ts";
 
 import { TagNotFoundError } from "../../../core/errors.ts";
@@ -13,6 +14,9 @@ export class MapStorageAdapter<TTag extends Tag = Tag<TagId>> implements Storage
 	readonly #tagToObjects = new Map<string, Set<string>>();
 	// objectKey string → Set of tagId strings
 	readonly #objectToTags = new Map<string, Set<string>>();
+	// extension symbol → its private auxiliary data map (keyed by serialized tag id)
+	readonly #auxByExtension = new Map<symbol, Map<string, unknown>>();
+	readonly #auxStoreWrappers = new Map<symbol, AuxStore<IdOf<TTag>, unknown>>();
 	readonly #idPlugin: IdProvider<IdOf<TTag>>;
 
 	constructor(options?: { idPlugin?: IdProvider<IdOf<TTag>> }) {
@@ -108,5 +112,55 @@ export class MapStorageAdapter<TTag extends Tag = Tag<TagId>> implements Storage
 		if (!set) return [];
 
 		return Array.from(set) as ObjectKey[];
+	}
+
+	getAuxStore<TData = unknown>(extensionId: symbol): AuxStore<IdOf<TTag>, TData> {
+		const cached = this.#auxStoreWrappers.get(extensionId);
+		if (cached) return cached as AuxStore<IdOf<TTag>, TData>;
+
+		const bucket = ((): Map<string, TData> => {
+			let value = this.#auxByExtension.get(extensionId);
+			if (!value) {
+				value = new Map<string, unknown>();
+				this.#auxByExtension.set(extensionId, value);
+			}
+			return value as Map<string, TData>;
+		})();
+
+		const idPlugin = this.#idPlugin; // NOTE: avoid accessing `this` in wrapper methods
+		const wrapper: AuxStore<IdOf<TTag>, TData> = {
+			async find(key) {
+				return bucket.get(idPlugin.serialize(key)) ?? null;
+			},
+			async put(key, data) {
+				bucket.set(idPlugin.serialize(key), data);
+			},
+			async patch(key, partial) {
+				const serialized = idPlugin.serialize(key);
+
+				const existing = bucket.get(serialized);
+				if (!existing) return null;
+
+				const merged = { ...existing, ...partial };
+				bucket.set(serialized, merged);
+				return merged;
+			},
+			async delete(key) {
+				return bucket.delete(idPlugin.serialize(key));
+			},
+			async list() {
+				return Array.from(
+					bucket
+						.entries()
+						.map(
+							([serialized, data]) =>
+								[idPlugin.deserialize(serialized), data] as [IdOf<TTag>, TData],
+						),
+				);
+			},
+		};
+		this.#auxStoreWrappers.set(extensionId, wrapper as AuxStore<IdOf<TTag>, unknown>);
+
+		return wrapper;
 	}
 }

@@ -22,10 +22,10 @@ export const createSoftDelete = <TTag extends TagWithSoftDelete>(): Extension<
 	permissions: { permissions: ["tag:read", "tag:write"] },
 	hooks: {
 		addTag: {
-			transform: (input) => ({ ...input, isDeleted: false }) as unknown as Omit<TTag, "id">,
+			transform: (_ctx, input) => ({ ...input, isDeleted: false }) as unknown as Omit<TTag, "id">,
 		},
 		listTags: {
-			transformOutput: (tags) => tags.filter((tag) => !tag.isDeleted),
+			transformOutput: (_ctx, tags) => tags.filter((tag) => !tag.isDeleted),
 		},
 	},
 	api: {

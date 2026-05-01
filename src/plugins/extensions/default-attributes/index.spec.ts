@@ -2,7 +2,7 @@ import type { Tag } from "../../../core/tag.ts";
 
 import { expect, suite, test } from "vitest";
 
-import { createServer } from "../../../api/server.ts";
+import { setupTagikon } from "../../../api/server.ts";
 import { use } from "../../../plugin/extension/use.ts";
 import { MapStorageAdapter } from "../../storage-adapters/map-storage-adapter/index.ts";
 import { createDefaultAttributes } from "./index.ts";
@@ -20,9 +20,9 @@ suite("createDefaultAttributes", () => {
 				label: () => "default-label",
 				priority: () => 0,
 			});
-			const server = createServer({ storage, extensions: [use(extension)] });
+			const tagikon = setupTagikon({ storageAdapter: storage, extensions: [use(extension)] });
 
-			const tag = await server.addTag({});
+			const tag = await tagikon.addTag({});
 			expect(tag.label).toBe("default-label");
 			expect(tag.priority).toBe(0);
 		});
@@ -33,9 +33,9 @@ suite("createDefaultAttributes", () => {
 				label: () => "default-label",
 				priority: () => 0,
 			});
-			const server = createServer({ storage, extensions: [use(extension)] });
+			const tagikon = setupTagikon({ storageAdapter: storage, extensions: [use(extension)] });
 
-			const tag = await server.addTag({ label: "custom", priority: 99 });
+			const tag = await tagikon.addTag({ label: "custom", priority: 99 });
 			expect(tag.label).toBe("custom");
 			expect(tag.priority).toBe(99);
 		});
@@ -46,10 +46,10 @@ suite("createDefaultAttributes", () => {
 			const extension = createDefaultAttributes<TagWithMeta>({
 				priority: () => ++count,
 			});
-			const server = createServer({ storage, extensions: [use(extension)] });
+			const tagikon = setupTagikon({ storageAdapter: storage, extensions: [use(extension)] });
 
-			const first = await server.addTag({});
-			const second = await server.addTag({});
+			const first = await tagikon.addTag({});
+			const second = await tagikon.addTag({});
 			expect(first.priority).toBe(1);
 			expect(second.priority).toBe(2);
 		});
@@ -60,9 +60,9 @@ suite("createDefaultAttributes", () => {
 				label: () => "fallback",
 				priority: () => 5,
 			});
-			const server = createServer({ storage, extensions: [use(extension)] });
+			const tagikon = setupTagikon({ storageAdapter: storage, extensions: [use(extension)] });
 
-			const tag = await server.addTag({ label: "provided" });
+			const tag = await tagikon.addTag({ label: "provided" });
 			expect(tag.label).toBe("provided");
 			expect(tag.priority).toBe(5);
 		});
