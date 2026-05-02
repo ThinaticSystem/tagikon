@@ -7,16 +7,16 @@ export interface TagWithSoftDelete extends Tag {
 
 export const SOFT_DELETE_NS: unique symbol = Symbol("soft-delete");
 
-export interface SoftDeleteApi extends ApiShape {
-	softDeleteTag: (id: unknown) => Promise<boolean>;
+export interface SoftDeleteApi<TId> extends ApiShape {
+	softDeleteTag: (id: TId) => Promise<boolean>;
 	listSoftDeletedTags: () => Promise<TagWithSoftDelete[]>;
-	restoreTag: (id: unknown) => Promise<void>;
+	restoreTag: (id: TId) => Promise<void>;
 }
 
 export const createSoftDelete = <TTag extends TagWithSoftDelete>(): Extension<
 	TTag,
 	typeof SOFT_DELETE_NS,
-	SoftDeleteApi
+	SoftDeleteApi<IdOf<TTag>>
 > => ({
 	namespace: SOFT_DELETE_NS,
 	permissions: { permissions: ["tag:read", "tag:write"] },
@@ -30,15 +30,12 @@ export const createSoftDelete = <TTag extends TagWithSoftDelete>(): Extension<
 	},
 	api: {
 		async softDeleteTag(ctx, id) {
-			const tag = await ctx.storage.getTag(id as IdOf<TTag>);
+			const tag = await ctx.storage.getTag(id);
 			if (!tag || tag.isDeleted) return false;
 
-			await ctx.storage.updateTag(
-				id as IdOf<TTag>,
-				{
-					isDeleted: true,
-				} as Partial<Omit<TTag, "id">>,
-			);
+			await ctx.storage.updateTag(id, {
+				isDeleted: true,
+			} as Partial<Omit<TTag, "id">>);
 			return true;
 		},
 		async listSoftDeletedTags(ctx) {
@@ -46,12 +43,9 @@ export const createSoftDelete = <TTag extends TagWithSoftDelete>(): Extension<
 			return all.filter((tag) => tag.isDeleted);
 		},
 		async restoreTag(ctx, id) {
-			await ctx.storage.updateTag(
-				id as IdOf<TTag>,
-				{
-					isDeleted: false,
-				} as Partial<Omit<TTag, "id">>,
-			);
+			await ctx.storage.updateTag(id, {
+				isDeleted: false,
+			} as Partial<Omit<TTag, "id">>);
 		},
 	},
 });

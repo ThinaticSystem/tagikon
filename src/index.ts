@@ -55,6 +55,12 @@ export type { AuxStore } from "./plugin/storage-adapter/aux-store.ts";
 export type { StorageAdapter } from "./plugin/storage-adapter/types.ts";
 export { createDefaultAttributes } from "./plugins/extensions/default-attributes/index.ts";
 export type { AttributeProviders } from "./plugins/extensions/default-attributes/index.ts";
+export {
+	HIERARCHY_NS,
+	HierarchyCycleError,
+	createHierarchy,
+} from "./plugins/extensions/hierarchy/index.ts";
+export type { HierarchyApi } from "./plugins/extensions/hierarchy/index.ts";
 export { SOFT_DELETE_NS, createSoftDelete } from "./plugins/extensions/soft-delete/index.ts";
 export type { SoftDeleteApi, TagWithSoftDelete } from "./plugins/extensions/soft-delete/index.ts";
 export * as idProviders from "./plugins/id-providers/index.ts";

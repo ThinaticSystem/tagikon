@@ -18,9 +18,9 @@ export interface UseOptions {
 export const use = <
 	TTag extends Tag,
 	TNamespace extends symbol = never,
-	TApi extends ApiShape = Record<never, never>,
+	TApi extends ApiShape = {},
 	TAux = unknown,
-	TChildrenApi = Record<never, never>,
+	TChildrenApi extends ApiShape = {},
 >(
 	extension: Extension<TTag, TNamespace, TApi, TAux, TChildrenApi>,
 	options?: UseOptions,

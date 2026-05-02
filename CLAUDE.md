@@ -178,6 +178,8 @@ src/
         index.ts           # SoftDelete プラグイン
       default-attributes/
         index.ts           # createDefaultAttributes
+      hierarchy/
+        index.ts           # HierarchyPlugin（ツリー構造・AuxStore 親子管理）
     id-providers/
       index.ts           # re-export
       string-id-provider/
@@ -336,6 +338,7 @@ TagikonError (基底)
   ├── TagNotFoundError                        { tagId: TagId }
   ├── TagAlreadyExistsError                   { tagName: string }
   ├── ObjectNotTaggedError                    { tagId: TagId, objectKey: ObjectKey }
+  ├── HierarchyCycleError                     { tagId: unknown, targetParentId: unknown }
   └── ExtensionError
       ├── PermissionMismatchError             { declared, acknowledged }
       └── IllegalExtensionDefinitionError
@@ -470,15 +473,12 @@ pnpm check         # CI相当の全チェック
 | `src/plugins/extensions/soft-delete/index.spec.ts`               | SoftDeletePlugin 統合テスト（softDeleteTag / listSoftDeletedTags / restoreTag / relations 保持 / TagPropertyCondition 連携）                                             |
 | `src/plugins/extensions/default-attributes/index.ts`             | `createDefaultAttributes` — addTag 時に不在属性をプロバイダー関数で補完する組み込み拡張                                                                                  |
 | `src/plugins/extensions/default-attributes/index.spec.ts`        | `createDefaultAttributes` ユニットテスト（デフォルト補完・優先順位・プロバイダー毎回評価）                                                                               |
+| `src/plugins/extensions/hierarchy/index.ts`                      | `createHierarchy` / `HIERARCHY_NS` / `HierarchyApi` / `HierarchyCycleError`（親子関係を AuxStore で管理するツリープラグイン）                                            |
+| `src/plugins/extensions/hierarchy/index.spec.ts`                 | HierarchyPlugin 統合テスト（moveTag / listChildren / getParent / listAncestors / listDescendants / orphan / cycle 検出）                                                 |
 
 ### 未実装（次に着手）
 
-- **タグの階層構造** — ディレクトリを表現するためのプラグイン。`HierarchyPlugin` として実装する。
-
-  ファイルエクスプローラーなどのユースケースを想定し、ツリー構造を提供する。タグの親子関係を管理し、`listTags()` はフラットリストのまま提供する（階層構造はプラグインが管理）  
-  階層変更は `editTag()` 経由で行う  
-  カスタムAPIで階層関連の操作を提供する（例: `moveTag(id, newParentId)`）
-
+- **TagId? unknown? タグのID型の整合**: BrandedTypeの `TagId` をコアの `Tag<TId>` の `TId` として統一する。これにより、IDの型安全が全体に伝播する（StorageAdapter / Server API など）。ただし、`IdProvider` のジェネリクスも `TId` に合わせる必要があるため、実装の大幅な変更を伴う。
 - **`TagPropertyCondition` の高機能化**: 部分一致や大なり小なりなどの条件をサポートするためのサブtype導入
 
   Finderプラグインはこれを評価できるようにする
@@ -489,8 +489,11 @@ pnpm check         # CI相当の全チェック
 
 ### 未確定事項（設計中）
 
+- **パーミッションの制限** — 指定されたパーミッションに応じて実際に利用可能なAPIを制限する
 - **タグの使用回数カウント（usage count）** — コアに持つか、Storage Adapterの集計クエリとして提供するか（どちらにせよプラグインで提供する方向）
 - **タグオブジェクトやauxのシリアライズ** — Storage への保存/読み込み時にどんなオブジェクトでも Serialize/Deserialize できる必要があるので、Serializer/Deserializer 実装をプラグインが実装できる (必須？)ようにする
 
   デフォルト (Serializerの指定がない場合)では JSON.stringify / JSON.parse を使うが、ユーザーが独自のシリアライズロジックを提供できるようにするという作戦もあるが、  
   シリアライズできないエラーは実行時にしかわからないためやや危険。
+
+- **プラグインのマイグレーション機構** — 例えば階層プラグインの実装を変えるときなど、既存のユーザーデータを新しい実装に移行するための仕組み。マイグレーションのための API を提供

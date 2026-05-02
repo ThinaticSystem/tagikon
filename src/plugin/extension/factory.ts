@@ -8,9 +8,9 @@ import type { ApiShape, Extension } from "./types.ts";
 export const createExtension = <
 	TTag extends Tag,
 	TNamespace extends symbol = never,
-	TApi extends ApiShape = Record<never, never>,
+	TApi extends ApiShape = {},
 	TAux = unknown,
-	TChildrenApi = Record<never, never>,
+	TChildrenApi extends ApiShape = {},
 >(
 	config: Extension<TTag, TNamespace, TApi, TAux, TChildrenApi>,
 ): Extension<TTag, TNamespace, TApi, TAux, TChildrenApi> => Object.freeze(config);

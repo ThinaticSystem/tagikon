@@ -46,7 +46,7 @@ export interface FinderImplement<TTag extends Tag> {
 // #endregion
 
 //#region Custom API
-export type ApiShape = Record<string, (...args: readonly unknown[]) => unknown>;
+export type ApiShape = Record<string, (...args: any[]) => unknown>;
 
 type ApiImplementation<TCtx, TApi extends ApiShape> = {
 	readonly [TKey in keyof TApi]: TApi[TKey] extends (...args: infer TArgs) => infer TReturn
@@ -59,7 +59,7 @@ type ApiImplementation<TCtx, TApi extends ApiShape> = {
 // erased here because the parent's view of a child only needs its custom API shape.
 export interface ExtensionRegistration<
 	TNamespace extends symbol = never,
-	TApi extends ApiShape = Record<never, never>,
+	TApi extends ApiShape = {},
 > {
 	readonly extension: Extension<Tag, TNamespace, TApi>;
 	readonly namespace: null | TNamespace;
@@ -94,9 +94,9 @@ export type ChildrenApiOf<
 export interface Extension<
 	TTag extends Tag,
 	TNamespace extends symbol = never,
-	TApi extends ApiShape = Record<never, never>,
+	TApi extends ApiShape = {},
 	TAux = unknown,
-	TChildrenApi = Record<never, never>,
+	TChildrenApi extends ApiShape = {},
 > {
 	namespace?: TNamespace;
 	/**
