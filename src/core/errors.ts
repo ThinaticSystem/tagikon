@@ -2,6 +2,20 @@ import type { ObjectKey, TagId } from "./ids.ts";
 
 export class TagikonError extends Error {}
 
+export class ExtensionError extends TagikonError {}
+
+export class IllegalExtensionDefinitionError extends ExtensionError {}
+
+export class NamespaceNotFoundError extends IllegalExtensionDefinitionError {
+	readonly name = "NamespaceNotFoundError";
+	readonly apiKeys: readonly string[];
+
+	constructor(apiKeys: readonly string[]) {
+		super(`Extension defines api methods [${apiKeys.join(", ")}] but no namespace was declared`);
+		this.apiKeys = apiKeys;
+	}
+}
+
 export class TagNotFoundError extends TagikonError {
 	readonly name = "TagNotFoundError";
 	readonly tagId: TagId;

@@ -2,7 +2,7 @@ import type { Tag } from "../../../core/tag.ts";
 
 import { expect, suite, test } from "vitest";
 
-import { setupTagikon } from "../../../api/server.ts";
+import { setupTagikon } from "../../../factory.ts";
 import { use } from "../../../plugin/extension/use.ts";
 import { MapStorageAdapter } from "../../storage-adapters/map-storage-adapter/index.ts";
 import { createDefaultAttributes } from "./index.ts";

@@ -1,13 +1,13 @@
-import type { Tag } from "../core/tag.ts";
-import type { Extension } from "../plugin/extension/types.ts";
+import type { Tag } from "./core/tag.ts";
+import type { Extension } from "./plugin/extension/types.ts";
 
 import { expect, suite, test, vi } from "vitest";
 
-import { TagNotFoundError } from "../core/errors.ts";
-import { objectKey, tagId } from "../core/ids.ts";
-import { use } from "../plugin/extension/use.ts";
-import { MapStorageAdapter } from "../plugins/storage-adapters/map-storage-adapter/index.ts";
-import { setupTagikon } from "./server.ts";
+import { TagNotFoundError } from "./core/errors.ts";
+import { objectKey, tagId } from "./core/ids.ts";
+import { setupTagikon } from "./factory.ts";
+import { use } from "./plugin/extension/use.ts";
+import { MapStorageAdapter } from "./plugins/storage-adapters/map-storage-adapter/index.ts";
 
 interface TagWithLabel extends Tag {
 	readonly label: string;

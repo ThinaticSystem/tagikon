@@ -3,11 +3,68 @@ import type { Extension } from "./types.ts";
 
 import { expect, suite, test } from "vitest";
 
-import { TagikonError } from "../../core/errors.ts";
+import {
+	ExtensionError,
+	IllegalExtensionDefinitionError,
+	NamespaceNotFoundError,
+	TagikonError,
+} from "../../core/errors.ts";
 import { PermissionMismatchError } from "../../security/permission.ts";
 import { use } from "./use.ts";
 
 suite("use()", () => {
+	suite("namespace validation", () => {
+		test("throws NamespaceNotFoundError when api is defined but namespace is missing", () => {
+			const extension = {
+				api: { greet: (_ctx: unknown) => "hello" },
+			} as unknown as Extension<Tag>;
+			expect(() => use(extension)).toThrow(NamespaceNotFoundError);
+		});
+
+		test("NamespaceNotFoundError is an IllegalExtensionDefinitionError", () => {
+			const extension = { api: { foo: (_ctx: unknown) => 1 } } as unknown as Extension<Tag>;
+			expect(() => use(extension)).toThrow(IllegalExtensionDefinitionError);
+		});
+
+		test("NamespaceNotFoundError is an ExtensionError", () => {
+			const extension = { api: { foo: (_ctx: unknown) => 1 } } as unknown as Extension<Tag>;
+			expect(() => use(extension)).toThrow(ExtensionError);
+		});
+
+		test("NamespaceNotFoundError is a TagikonError", () => {
+			const extension = { api: { foo: (_ctx: unknown) => 1 } } as unknown as Extension<Tag>;
+			expect(() => use(extension)).toThrow(TagikonError);
+		});
+
+		test("error carries the api key names", () => {
+			const extension = {
+				api: { foo: (_ctx: unknown) => 1, bar: (_ctx: unknown) => 2 },
+			} as unknown as Extension<Tag>;
+			try {
+				use(extension);
+				expect.unreachable();
+			} catch (e) {
+				expect(e).toBeInstanceOf(NamespaceNotFoundError);
+				const err = e as NamespaceNotFoundError;
+				expect(err.apiKeys).toContain("foo");
+				expect(err.apiKeys).toContain("bar");
+			}
+		});
+
+		test("succeeds when api is defined with a namespace", () => {
+			const NS: unique symbol = Symbol("ns");
+			const extension: Extension<Tag, typeof NS, { greet(): string }> = {
+				namespace: NS,
+				api: { greet: (_ctx) => "hello" },
+			};
+			expect(() => use(extension)).not.toThrow();
+		});
+
+		test("succeeds when api is empty object and namespace is missing", () => {
+			expect(() => use({ api: {} })).not.toThrow();
+		});
+	});
+
 	suite("permission matching", () => {
 		test("succeeds when declared and acknowledged permissions match exactly", () => {
 			const extension: Extension<Tag> = {

@@ -2,8 +2,8 @@ import type { TagWithSoftDelete } from "./index.ts";
 
 import { expect, suite, test } from "vitest";
 
-import { setupTagikon } from "../../../api/server.ts";
 import { objectKey } from "../../../core/ids.ts";
+import { setupTagikon } from "../../../factory.ts";
 import { not, tagProperty } from "../../../finder/condition.ts";
 import { MemoryFinder } from "../../../finder/memory-finder.ts";
 import { use } from "../../../plugin/extension/use.ts";

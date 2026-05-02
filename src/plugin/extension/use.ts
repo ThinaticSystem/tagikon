@@ -2,6 +2,7 @@ import type { Tag } from "../../core/tag.ts";
 import type { Permission } from "../../security/permission.ts";
 import type { ApiShape, Extension, ExtensionRegistration } from "./types.ts";
 
+import { NamespaceNotFoundError } from "../../core/errors.ts";
 import { PermissionMismatchError } from "../../security/permission.ts";
 
 export type { ExtensionRegistration } from "./types.ts";
@@ -24,6 +25,10 @@ export const use = <
 	extension: Extension<TTag, TNamespace, TApi, TAux, TChildrenApi>,
 	options?: UseOptions,
 ): ExtensionRegistration<TNamespace, TApi> => {
+	// NOTE: An empty object is treated as unspecified
+	const apiKeys = Object.keys(extension.api ?? {});
+	if (apiKeys.length > 0 && !extension.namespace) throw new NamespaceNotFoundError(apiKeys);
+
 	const declared = new Set(extension.permissions?.permissions ?? []);
 	const acknowledged = new Set(options?.permissions ?? []);
 	if (declared.symmetricDifference(acknowledged).size !== 0)

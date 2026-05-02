@@ -1,19 +1,19 @@
-import type { ObjectKey } from "../core/ids.ts";
-import type { IdOf, Tag } from "../core/tag.ts";
-import type { TagCondition } from "../finder/condition.ts";
-import type { HookEntry } from "../hook/runner.ts";
-import type { ExtensionStorageView } from "../plugin/extension/context.ts";
+import type { ObjectKey } from "./core/ids.ts";
+import type { IdOf, Tag } from "./core/tag.ts";
+import type { TagCondition } from "./finder/condition.ts";
+import type { HookEntry } from "./hook/runner.ts";
+import type { ExtensionStorageView } from "./plugin/extension/context.ts";
 import type {
 	ApiShape,
 	ChildrenApiOf,
 	Extension,
 	ExtensionRegistration,
 	FinderImplement,
-} from "../plugin/extension/types.ts";
-import type { StorageAdapter } from "../plugin/storage-adapter/types.ts";
+} from "./plugin/extension/types.ts";
+import type { StorageAdapter } from "./plugin/storage-adapter/types.ts";
 
-import { collectHooks, runPipeline } from "../hook/runner.ts";
-import { createExtensionContext } from "../plugin/extension/context.ts";
+import { collectHooks, runPipeline } from "./hook/runner.ts";
+import { createExtensionContext } from "./plugin/extension/context.ts";
 
 export interface CoreApi<TTag extends Tag> {
 	addTag(attributes: Omit<TTag, "id">): Promise<TTag>;
@@ -38,7 +38,6 @@ export interface SetupTagikonOptions<
 	extensions?: TRegistrations;
 }
 
-// Internal: storage view that hides getAuxStore from extensions.
 const wrapStorageForExtensions = <TTag extends Tag>(
 	storage: StorageAdapter<TTag>,
 ): ExtensionStorageView<TTag> => ({
@@ -110,9 +109,6 @@ export const setupTagikon = <
 
 	const allHookEntries = emptyHookEntries();
 
-	// Walk an extension and all of its descendants. For each one: build its ctx
-	// (with its own AuxStore and its children's bound APIs), bind its custom api
-	// methods, and append its hook entries for every operation.
 	const buildBinding = (ext: AnyExtension<TTag>): ExtensionBinding => {
 		const childrenBoundApiMap: Record<symbol, BoundApi> = {};
 
@@ -157,7 +153,6 @@ export const setupTagikon = <
 		return { boundApi };
 	};
 
-	// Top-level: build each registered extension's binding and expose at the namespaced key.
 	const namespacedApis: Record<symbol, BoundApi> = {};
 	for (const childRegistration of rootRegistrations) {
 		const childExtension = childRegistration.extension as unknown as AnyExtension<TTag>;
@@ -167,7 +162,6 @@ export const setupTagikon = <
 		}
 	}
 
-	// Finder lookup: depth-first across the whole tree, first match wins.
 	const findFinder = (
 		registrations: readonly ExtensionRegistration<symbol, ApiShape>[],
 	): null | FinderImplement<TTag> => {

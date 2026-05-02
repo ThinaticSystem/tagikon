@@ -1,6 +1,7 @@
-export { setupTagikon } from "./api/server.ts";
-export type { CoreApi, SetupTagikonOptions } from "./api/server.ts";
 export {
+	ExtensionError,
+	IllegalExtensionDefinitionError,
+	NamespaceNotFoundError,
 	ObjectNotTaggedError,
 	TagAlreadyExistsError,
 	TagNotFoundError,
@@ -10,6 +11,8 @@ export { objectKey, tagId } from "./core/ids.ts";
 export type { ObjectKey, TagId } from "./core/ids.ts";
 export type { TagRelation } from "./core/relation.ts";
 export type { IdOf, Tag } from "./core/tag.ts";
+export { setupTagikon } from "./factory.ts";
+export type { CoreApi, SetupTagikonOptions } from "./factory.ts";
 export { and, has, not, or, tagProperty } from "./finder/condition.ts";
 export type {
 	AndCondition,
