@@ -4,7 +4,20 @@ import type { OrCondition } from "./condition.ts";
 import { expect, suite, test } from "vitest";
 
 import { tagId } from "../core/ids.ts";
-import { and, has, not, or } from "./condition.ts";
+import {
+	and,
+	has,
+	not,
+	or,
+	tagProperty,
+	tagPropertyContains,
+	tagPropertyEndsWith,
+	tagPropertyGreaterThan,
+	tagPropertyGreaterThanOrEqual,
+	tagPropertyLessThan,
+	tagPropertyLessThanOrEqual,
+	tagPropertyStartsWith,
+} from "./condition.ts";
 
 suite("condition builders", () => {
 	test("has creates a HasCondition", () => {
@@ -53,5 +66,71 @@ suite("condition builders", () => {
 		const orCond = cond.conditions[1] as OrCondition<TagId>;
 		expect(orCond.conditions).toHaveLength(1);
 		expect(orCond.conditions[0]!.type).toBe("has");
+	});
+
+	suite("tagProperty builders", () => {
+		test("tagProperty creates a TagPropertyEqualCondition", () => {
+			const cond = tagProperty("name", "foo");
+			expect(cond.type).toBe("tag-property");
+			expect(cond.match).toBe("equal");
+			expect(cond.property).toBe("name");
+			expect(cond.value).toBe("foo");
+		});
+
+		test("tagPropertyContains creates a TagPropertyContainsCondition", () => {
+			const cond = tagPropertyContains("name", "oo");
+			expect(cond.type).toBe("tag-property");
+			expect(cond.match).toBe("contains");
+			expect(cond.property).toBe("name");
+			expect(cond.value).toBe("oo");
+		});
+
+		test("tagPropertyStartsWith creates a TagPropertyStartsWithCondition", () => {
+			const cond = tagPropertyStartsWith("name", "fo");
+			expect(cond.type).toBe("tag-property");
+			expect(cond.match).toBe("starts-with");
+			expect(cond.property).toBe("name");
+			expect(cond.value).toBe("fo");
+		});
+
+		test("tagPropertyEndsWith creates a TagPropertyEndsWithCondition", () => {
+			const cond = tagPropertyEndsWith("name", "oo");
+			expect(cond.type).toBe("tag-property");
+			expect(cond.match).toBe("ends-with");
+			expect(cond.property).toBe("name");
+			expect(cond.value).toBe("oo");
+		});
+
+		test("tagPropertyGreaterThan creates a TagPropertyGreaterThanCondition", () => {
+			const cond = tagPropertyGreaterThan("score", 10);
+			expect(cond.type).toBe("tag-property");
+			expect(cond.match).toBe("greater-than");
+			expect(cond.property).toBe("score");
+			expect(cond.value).toBe(10);
+		});
+
+		test("tagPropertyLessThan creates a TagPropertyLessThanCondition", () => {
+			const cond = tagPropertyLessThan("score", 10);
+			expect(cond.type).toBe("tag-property");
+			expect(cond.match).toBe("less-than");
+			expect(cond.property).toBe("score");
+			expect(cond.value).toBe(10);
+		});
+
+		test("tagPropertyGreaterThanOrEqual creates a TagPropertyGreaterThanOrEqualCondition", () => {
+			const cond = tagPropertyGreaterThanOrEqual("score", 10);
+			expect(cond.type).toBe("tag-property");
+			expect(cond.match).toBe("greater-than-or-equal");
+			expect(cond.property).toBe("score");
+			expect(cond.value).toBe(10);
+		});
+
+		test("tagPropertyLessThanOrEqual creates a TagPropertyLessThanOrEqualCondition", () => {
+			const cond = tagPropertyLessThanOrEqual("score", 10);
+			expect(cond.type).toBe("tag-property");
+			expect(cond.match).toBe("less-than-or-equal");
+			expect(cond.property).toBe("score");
+			expect(cond.value).toBe(10);
+		});
 	});
 });

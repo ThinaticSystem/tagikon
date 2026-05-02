@@ -2,7 +2,28 @@ import type { ObjectKey, TagId } from "../core/ids.ts";
 import type { IdOf, Tag } from "../core/tag.ts";
 import type { FinderImplement } from "../plugin/extension/types.ts";
 import type { StorageAdapter } from "../plugin/storage-adapter/types.ts";
-import type { TagCondition } from "./condition.ts";
+import type { TagCondition, TagPropertyCondition } from "./condition.ts";
+
+const evalTagPropertyMatch = (tagValue: unknown, condition: TagPropertyCondition): boolean => {
+	switch (condition.match) {
+		case "equal":
+			return tagValue === condition.value;
+		case "contains":
+			return typeof tagValue === "string" && tagValue.includes(condition.value);
+		case "starts-with":
+			return typeof tagValue === "string" && tagValue.startsWith(condition.value);
+		case "ends-with":
+			return typeof tagValue === "string" && tagValue.endsWith(condition.value);
+		case "greater-than":
+			return typeof tagValue === "number" && tagValue > condition.value;
+		case "less-than":
+			return typeof tagValue === "number" && tagValue < condition.value;
+		case "greater-than-or-equal":
+			return typeof tagValue === "number" && tagValue >= condition.value;
+		case "less-than-or-equal":
+			return typeof tagValue === "number" && tagValue <= condition.value;
+	}
+};
 
 const evalCondition = async <TTag extends Tag>(
 	condition: TagCondition<IdOf<TTag>>,
@@ -15,10 +36,11 @@ const evalCondition = async <TTag extends Tag>(
 		case "tag-property": {
 			const allTags = await storage.listTags();
 			const matchingTagIds = allTags
-				.filter(
-					(tag) =>
-						(tag as unknown as Record<string, unknown>)[condition.property] === condition.value,
-				)
+				.values()
+				.filter((tag) => {
+					const tagValue = (tag as unknown as Record<string, unknown>)[condition.property];
+					return evalTagPropertyMatch(tagValue, condition);
+				})
 				.map((tag) => tag.id as IdOf<TTag>);
 			const resultArrays = await Promise.all(
 				matchingTagIds.map((tagId) => storage.listTagObjects(tagId)),

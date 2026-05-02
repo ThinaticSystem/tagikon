@@ -13,7 +13,20 @@ export type { TagRelation } from "./core/relation.ts";
 export type { IdOf, Tag } from "./core/tag.ts";
 export { setupTagikon } from "./factory.ts";
 export type { CoreApi, SetupTagikonOptions } from "./factory.ts";
-export { and, has, not, or, tagProperty } from "./finder/condition.ts";
+export {
+	and,
+	has,
+	not,
+	or,
+	tagProperty,
+	tagPropertyContains,
+	tagPropertyEndsWith,
+	tagPropertyGreaterThan,
+	tagPropertyGreaterThanOrEqual,
+	tagPropertyLessThan,
+	tagPropertyLessThanOrEqual,
+	tagPropertyStartsWith,
+} from "./finder/condition.ts";
 export type {
 	AndCondition,
 	HasCondition,
@@ -21,6 +34,14 @@ export type {
 	OrCondition,
 	TagCondition,
 	TagPropertyCondition,
+	TagPropertyContainsCondition,
+	TagPropertyEndsWithCondition,
+	TagPropertyEqualCondition,
+	TagPropertyGreaterThanCondition,
+	TagPropertyGreaterThanOrEqualCondition,
+	TagPropertyLessThanCondition,
+	TagPropertyLessThanOrEqualCondition,
+	TagPropertyStartsWithCondition,
 } from "./finder/condition.ts";
 export { MemoryFinder } from "./finder/memory-finder.ts";
 export type {
