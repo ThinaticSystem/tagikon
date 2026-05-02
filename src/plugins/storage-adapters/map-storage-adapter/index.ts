@@ -104,7 +104,10 @@ export class MapStorageAdapter<TTag extends Tag = Tag<TagId>> implements Storage
 		const set = this.#objectToTags.get(objectKey as string);
 		if (!set) return [];
 
-		return Array.from(set).map((raw) => this.#idPlugin.deserialize(raw));
+		return set
+			.values()
+			.map((raw) => this.#idPlugin.deserialize(raw))
+			.toArray();
 	}
 
 	async listTagObjects(tagId: IdOf<TTag>): Promise<ObjectKey[]> {
@@ -149,14 +152,12 @@ export class MapStorageAdapter<TTag extends Tag = Tag<TagId>> implements Storage
 				return bucket.delete(idPlugin.serialize(key));
 			},
 			async list() {
-				return Array.from(
-					bucket
-						.entries()
-						.map(
-							([serialized, data]) =>
-								[idPlugin.deserialize(serialized), data] as [IdOf<TTag>, TData],
-						),
-				);
+				return bucket
+					.entries()
+					.map(
+						([serialized, data]) => [idPlugin.deserialize(serialized), data] as [IdOf<TTag>, TData],
+					)
+					.toArray();
 			},
 		};
 		this.#auxStoreWrappers.set(extensionId, wrapper as AuxStore<IdOf<TTag>, unknown>);

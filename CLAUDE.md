@@ -146,6 +146,10 @@ export const objectKey = (raw: string): ObjectKey => { ... };
 - `src/index.ts` はライブラリの公開エントリーポイント（re-exportのみ）
 - 内部モジュールは `src/internal/` 以下に配置し、公開APIから隠蔽する
 
+### イテレーション実装
+
+配列を処理する際、`filter/map/reduce` などの組み込みメソッド複数段使う場合は、パフォーマンスのために Iterator Helpers を使用することを検討する（例: `array.filter(...).map(...)` → `array.values().filter(...).map(...).toArray()` など）。
+
 ---
 
 ## ディレクトリ構成
@@ -478,10 +482,13 @@ pnpm check         # CI相当の全チェック
 
 ### 未実装（次に着手）
 
-- **TagId? unknown? タグのID型の整合**: BrandedTypeの `TagId` をコアの `Tag<TId>` の `TId` として統一する。これにより、IDの型安全が全体に伝播する（StorageAdapter / Server API など）。ただし、`IdProvider` のジェネリクスも `TId` に合わせる必要があるため、実装の大幅な変更を伴う。
-- **Iterator Helpers使用へのリファクタリング**: パフォーマンスのため、実装での Array.prototype.map/filter/reduce 使用箇所を Iterator Helpers に置き換える
-- **_tsdown_ でのバンドル**: npm パッケージとして公開するためのビルドステップ。`tsdown` を検討
-- **ドキュメント生成** — APIリファレンスを自動生成する仕組み
+**着手順序:**
+
+1. **TagId? unknown? タグのID型の整合** — BrandedTypeの `TagId` をコアの `Tag<TId>` の `TId` として統一する。これにより、IDの型安全が全体に伝播する（StorageAdapter / Server API など）。ただし、`IdProvider` のジェネリクスも `TId` に合わせる必要があるため、実装の大幅な変更を伴う。
+
+1. **_tsdown_ でのバンドル** — npm パッケージとして公開するためのビルドステップ。`tsdown` を検討
+
+1. **ドキュメント生成** — APIリファレンスを自動生成する仕組み
 
 ### 未確定事項（設計中）
 

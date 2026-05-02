@@ -90,12 +90,11 @@ export const createHierarchy = <TTag extends Tag>(): Extension<
 
 		async listChildren(ctx, parentId) {
 			const all = await ctx.aux.list();
-			return Array.from(
-				all
-					.values()
-					.filter(([, data]) => data.parentId === parentId)
-					.map(([childId]) => childId),
-			);
+			return all
+				.values()
+				.filter(([, data]) => data.parentId === parentId)
+				.map(([childId]) => childId)
+				.toArray();
 		},
 
 		async getParent(ctx, id) {

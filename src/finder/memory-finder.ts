@@ -61,20 +61,23 @@ const evalCondition = async <TTag extends Tag>(
 
 		case "and": {
 			const resultArrays = await Promise.all(
-				condition.conditions.map((condition) => evalCondition(condition, storage)),
+				condition.conditions.values().map((condition) => evalCondition(condition, storage)),
 			);
 			const [firstBatch, ...restBatches] = resultArrays;
 			let acc = firstBatch ?? [];
 			for (const batch of restBatches) {
 				const batchSet = new Set(batch as string[]);
-				acc = acc.filter((objectKey) => batchSet.has(objectKey as string));
+				acc = acc
+					.values()
+					.filter((objectKey) => batchSet.has(objectKey as string))
+					.toArray();
 			}
 			return acc;
 		}
 
 		case "or": {
 			const resultArrays = await Promise.all(
-				condition.conditions.map((condition) => evalCondition(condition, storage)),
+				condition.conditions.values().map((condition) => evalCondition(condition, storage)),
 			);
 			const seen = new Set<string>();
 			const out: ObjectKey[] = [];
@@ -97,7 +100,7 @@ const evalCondition = async <TTag extends Tag>(
 			]);
 			const excludeSet = new Set(innerResults);
 			const allObjectBatches = await Promise.all(
-				allTags.map((tag) => storage.listTagObjects(tag.id as IdOf<TTag>)),
+				allTags.values().map((tag) => storage.listTagObjects(tag.id as IdOf<TTag>)),
 			);
 			const allSeen = new Set<string>();
 			const allObjects: ObjectKey[] = [];
@@ -110,7 +113,10 @@ const evalCondition = async <TTag extends Tag>(
 					}
 				}
 			}
-			return allObjects.filter((objectKey) => !excludeSet.has(objectKey));
+			return allObjects
+				.values()
+				.filter((objectKey) => !excludeSet.has(objectKey))
+				.toArray();
 		}
 	}
 };

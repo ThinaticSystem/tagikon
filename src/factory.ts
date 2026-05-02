@@ -234,8 +234,8 @@ export const setupTagikon = <
 				const currentIds = await storageAdapter.listObjectTags(typed.objectKey);
 				const newSet = new Set<IdOf<TTag>>(typed.tagIds);
 				const currentSet = new Set<IdOf<TTag>>(currentIds);
-				const toAdd = typed.tagIds.filter((id) => !currentSet.has(id));
-				const toRemove = currentIds.filter((id) => !newSet.has(id));
+				const toAdd = typed.tagIds.values().filter((id) => !currentSet.has(id));
+				const toRemove = currentIds.values().filter((id) => !newSet.has(id));
 				for (const tid of toAdd) await storageAdapter.addRelations(tid, [typed.objectKey]);
 				for (const tid of toRemove) await storageAdapter.removeRelations(tid, [typed.objectKey]);
 			});
