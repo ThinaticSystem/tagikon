@@ -4,3 +4,6 @@
 
 # TypeScript
 /tsconfig.*.tsbuildinfo
+
+# Build output
+/built/

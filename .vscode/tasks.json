@@ -49,6 +49,13 @@
 			"type": "npm",
 			"script": "check",
 			"problemMatcher": []
+		},
+		{
+			"label": "build",
+			"detail": "Build the project",
+			"type": "npm",
+			"script": "build",
+			"problemMatcher": []
 		}
 	]
 }

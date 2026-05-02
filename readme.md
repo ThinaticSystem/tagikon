@@ -13,10 +13,10 @@
 
 ### Commands
 
-#### Run
+#### Build
 
-- **Terminal:** `pnpm dev`
-- **VS Code:** Press <kbd>F5</kbd>
+- **Terminal:** `pnpm build`
+- **VS Code:** <kbd>Ctrl</kbd> + <kbd>P</kbd> -> `task build`
 
 #### Format Code
 

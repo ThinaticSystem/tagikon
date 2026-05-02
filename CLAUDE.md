@@ -13,12 +13,14 @@
 
 ## テクノロジースタック
 
-| ツール                                    | 用途                          |
-| ----------------------------------------- | ----------------------------- |
-| TypeScript (ESNext, `erasableSyntaxOnly`) | 言語                          |
-| `@typescript/native-preview` (`tsgo`)     | 型チェック (`pnpm typecheck`) |
-| Vitest                                    | テスト (`pnpm test`)          |
-| oxlint + oxfmt                            | Lint / フォーマット           |
+| ツール                                    | 用途                                                                              |
+| ----------------------------------------- | --------------------------------------------------------------------------------- |
+| TypeScript (ESNext, `erasableSyntaxOnly`) | 言語                                                                              |
+| `@typescript/native-preview` (`tsgo`)     | 型チェック (`pnpm typecheck`)                                                     |
+| `typescript`                              | DTS生成専用（`tsdown` の `rolldown-plugin-dts` が要求。型チェックには使用しない） |
+| `tsdown`                                  | バンドル (`pnpm build`)                                                           |
+| Vitest                                    | テスト (`pnpm test`)                                                              |
+| oxlint + oxfmt                            | Lint / フォーマット                                                               |
 
 ### TypeScript 設定の制約
 
@@ -479,14 +481,13 @@ pnpm check         # CI相当の全チェック
 | `src/plugins/extensions/default-attributes/index.spec.ts`        | `createDefaultAttributes` ユニットテスト（デフォルト補完・優先順位・プロバイダー毎回評価）                                                                                                                                                                                                                                                                                    |
 | `src/plugins/extensions/hierarchy/index.ts`                      | `createHierarchy` / `HIERARCHY_NS` / `HierarchyApi` / `HierarchyCycleError`（親子関係を AuxStore で管理するツリープラグイン）                                                                                                                                                                                                                                                 |
 | `src/plugins/extensions/hierarchy/index.spec.ts`                 | HierarchyPlugin 統合テスト（moveTag / listChildren / getParent / listAncestors / listDescendants / orphan / cycle 検出）                                                                                                                                                                                                                                                      |
+| `tsdown.config.ts` / `package.json` / `.gitignore`               | tsdown バンドル設定（ESM + DTS 生成、`built/` を gitignore / oxfmt 除外）                                                                                                                                                                                                                                                                                                      |
 
 ### 未実装（次に着手）
 
 **着手順序:**
 
 1. **TagId? unknown? タグのID型の整合** — BrandedTypeの `TagId` をコアの `Tag<TId>` の `TId` として統一する。これにより、IDの型安全が全体に伝播する（StorageAdapter / Server API など）。ただし、`IdProvider` のジェネリクスも `TId` に合わせる必要があるため、実装の大幅な変更を伴う。
-
-1. **_tsdown_ でのバンドル** — npm パッケージとして公開するためのビルドステップ。`tsdown` を検討
 
 1. **ドキュメント生成** — APIリファレンスを自動生成する仕組み
 

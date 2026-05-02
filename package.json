@@ -1,9 +1,23 @@
 {
 	"name": "tagikon",
 	"version": "0.1.0",
+	"files": [
+		"built"
+	],
 	"type": "module",
-	"main": "src/index.ts",
+	"main": "./built/index.mjs",
+	"module": "./built/index.mjs",
+	"types": "./built/index.d.mts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./built/index.d.mts",
+				"default": "./built/index.mjs"
+			}
+		}
+	},
 	"scripts": {
+		"build": "tsdown",
 		"dev": "node src/index.ts",
 		"format": "oxfmt",
 		"format:dry": "oxfmt --check",
@@ -15,11 +29,14 @@
 		"check": "pnpm format:dry && pnpm lint && pnpm typecheck && pnpm test:run"
 	},
 	"devDependencies": {
+		"@arethetypeswrong/core": "^0.18.2",
 		"@types/node": "24 - 24.16",
 		"@typescript/native-preview": "7.0.0-dev.20260503.1",
 		"oxfmt": "^0.48.0",
 		"oxlint": "^1.42.0",
 		"oxlint-tsgolint": "^0.22.0",
+		"tsdown": "^0.21.10",
+		"typescript": "^6.0.3",
 		"vitest": "^4.0.18"
 	},
 	"packageManager": "pnpm@11.3.0"
