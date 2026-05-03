@@ -1,4 +1,5 @@
-import type { ApiShape, Extension, Tag, TagId } from "./index.ts";
+import type { ApiShape, Extension, Tag } from "./index.ts";
+import type { Uuid } from "./plugins/id-providers/uuid-id-provider/index.ts";
 
 import { expect, suite, test } from "vitest";
 
@@ -15,7 +16,7 @@ import {
 	UUID_ID_PROVIDER,
 } from "./index.ts";
 
-interface TagWithName extends Tag<TagId> {
+interface TagWithName extends Tag<Uuid> {
 	readonly name: string;
 }
 
@@ -53,7 +54,7 @@ suite("Public API", () => {
 
 		test("library errors are instanceof TagikonError", async () => {
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<Tag<TagId>>(UUID_ID_PROVIDER),
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
 			});
 
 			const tag = await tagikon.addTag({});
@@ -114,7 +115,7 @@ suite("Public API", () => {
 	});
 
 	suite("TagImplement extension", () => {
-		interface TagWithNote extends Tag<TagId> {
+		interface TagWithNote extends Tag<Uuid> {
 			readonly note: string;
 		}
 
@@ -157,7 +158,7 @@ suite("Public API", () => {
 					},
 				},
 			};
-			const storage = new MapStorageAdapter<Tag<TagId>>(UUID_ID_PROVIDER);
+			const storage = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
 			const tagikon = setupTagikon({
 				storageAdapter: storage,
 				extensions: [

@@ -1,6 +1,8 @@
 import type { Tag } from "./core/tag.ts";
+import type { ExtensionStorageView } from "./plugin/extension/context.ts";
 import type { Extension } from "./plugin/extension/types.ts";
 import type { Uuid } from "./plugins/id-providers/uuid-id-provider/index.ts";
+import type { Permission } from "./security/permission.ts";
 
 import { expect, suite, test, vi } from "vitest";
 
@@ -10,6 +12,7 @@ import { setupTagikon } from "./factory.ts";
 import { use } from "./plugin/extension/use.ts";
 import { uuid, UUID_ID_PROVIDER } from "./plugins/id-providers/uuid-id-provider/index.ts";
 import { MapStorageAdapter } from "./plugins/storage-adapters/map-storage-adapter/index.ts";
+import { PermissionDeniedError } from "./security/permission.ts";
 
 interface TagWithLabel extends Tag<Uuid> {
 	readonly label: string;
@@ -330,6 +333,7 @@ suite("setupTagikon", () => {
 				{ markFirst(): Promise<void>; ownAuxSize(): Promise<number> }
 			> = {
 				namespace: A_NS,
+				permissions: { permissions: ["tag:read"] },
 				api: {
 					async markFirst(ctx) {
 						const tags = await ctx.storage.listTags();
@@ -352,7 +356,7 @@ suite("setupTagikon", () => {
 
 			const tagikon = setupTagikon({
 				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
-				extensions: [use(extA), use(extB)],
+				extensions: [use(extA, { permissions: ["tag:read"] }), use(extB)],
 			});
 
 			await tagikon.addTag({});
@@ -385,5 +389,99 @@ suite("setupTagikon", () => {
 			const tag = await tagikon.addTag({ description: "hello" });
 			expect(tag.description).toBe("hello");
 		});
+	});
+
+	suite("permission enforcement", () => {
+		const NS: unique symbol = Symbol("perm-test");
+
+		type StorageCall = (storage: ExtensionStorageView<Tag<Uuid>>) => Promise<unknown>;
+
+		const storageApiMatrix: Array<{
+			method: string;
+			permission: Permission;
+			call: StorageCall;
+		}> = [
+			{ method: "listTags", permission: "tag:read", call: (s) => s.listTags() },
+			{ method: "getTag", permission: "tag:read", call: (s) => s.getTag(uuid("dummy")) },
+			{ method: "createTag", permission: "tag:write", call: (s) => s.createTag({}) },
+			{
+				method: "updateTag",
+				permission: "tag:write",
+				call: (s) => s.updateTag(uuid("dummy"), {}),
+			},
+			{ method: "deleteTag", permission: "tag:write", call: (s) => s.deleteTag(uuid("dummy")) },
+			{
+				method: "addRelations",
+				permission: "relation:write",
+				call: (s) => s.addRelations(uuid("dummy"), [objectKey("x")]),
+			},
+			{
+				method: "removeRelations",
+				permission: "relation:write",
+				call: (s) => s.removeRelations(uuid("dummy"), [objectKey("x")]),
+			},
+			{
+				method: "listObjectTags",
+				permission: "relation:read",
+				call: (s) => s.listObjectTags(objectKey("x")),
+			},
+			{
+				method: "listTagObjects",
+				permission: "relation:read",
+				call: (s) => s.listTagObjects(uuid("dummy")),
+			},
+		];
+
+		test.each(storageApiMatrix)(
+			"throws PermissionDeniedError for ctx.storage.$method when $permission is not granted",
+			async ({ permission, call }) => {
+				let caught: unknown = null;
+				const ext: Extension<Tag<Uuid>, typeof NS, { run(): Promise<void> }> = {
+					namespace: NS,
+					api: {
+						async run(ctx) {
+							try {
+								await call(ctx.storage);
+							} catch (e) {
+								caught = e;
+							}
+						},
+					},
+				};
+				const tagikon = setupTagikon({
+					storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
+					extensions: [use(ext)],
+				});
+				await tagikon[NS].run();
+				expect(caught).toBeInstanceOf(PermissionDeniedError);
+				expect((caught as PermissionDeniedError).permission).toBe(permission);
+			},
+		);
+
+		test.each(storageApiMatrix)(
+			"does not throw PermissionDeniedError for ctx.storage.$method when $permission is granted",
+			async ({ permission, call }) => {
+				let accessDenied = false;
+				const ext: Extension<Tag<Uuid>, typeof NS, { run(): Promise<void> }> = {
+					namespace: NS,
+					permissions: { permissions: [permission] },
+					api: {
+						async run(ctx) {
+							try {
+								await call(ctx.storage);
+							} catch (e) {
+								if (e instanceof PermissionDeniedError) accessDenied = true;
+							}
+						},
+					},
+				};
+				const tagikon = setupTagikon({
+					storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
+					extensions: [use(ext, { permissions: [permission] })],
+				});
+				await tagikon[NS].run();
+				expect(accessDenied).toBe(false);
+			},
+		);
 	});
 });

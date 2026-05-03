@@ -11,9 +11,11 @@ import type {
 	FinderImplement,
 } from "./plugin/extension/types.ts";
 import type { StorageAdapter } from "./plugin/storage-adapter/types.ts";
+import type { Permission } from "./security/permission.ts";
 
 import { collectHooks, runPipeline } from "./hook/runner.ts";
 import { createExtensionContext } from "./plugin/extension/context.ts";
+import { PermissionDeniedError } from "./security/permission.ts";
 
 export interface CoreApi<TTag extends Tag> {
 	addTag(attributes: Omit<TTag, "id">): Promise<TTag>;
@@ -51,6 +53,30 @@ const wrapStorageForExtensions = <TTag extends Tag>(
 	listObjectTags: storage.listObjectTags.bind(storage),
 	listTagObjects: storage.listTagObjects.bind(storage),
 });
+
+const createPermissionGuardedView = <TTag extends Tag>(
+	view: ExtensionStorageView<TTag>,
+	permissions: ReadonlySet<Permission>,
+): ExtensionStorageView<TTag> => {
+	const denied = (permission: Permission): never => {
+		throw new PermissionDeniedError(permission);
+	};
+	const tagRead = permissions.has("tag:read");
+	const tagWrite = permissions.has("tag:write");
+	const relRead = permissions.has("relation:read");
+	const relWrite = permissions.has("relation:write");
+	return Object.freeze({
+		createTag: tagWrite ? view.createTag : () => denied("tag:write"),
+		getTag: tagRead ? view.getTag : () => denied("tag:read"),
+		listTags: tagRead ? view.listTags : () => denied("tag:read"),
+		updateTag: tagWrite ? view.updateTag : () => denied("tag:write"),
+		deleteTag: tagWrite ? view.deleteTag : () => denied("tag:write"),
+		addRelations: relWrite ? view.addRelations : () => denied("relation:write"),
+		removeRelations: relWrite ? view.removeRelations : () => denied("relation:write"),
+		listObjectTags: relRead ? view.listObjectTags : () => denied("relation:read"),
+		listTagObjects: relRead ? view.listTagObjects : () => denied("relation:read"),
+	}) as unknown as ExtensionStorageView<TTag>;
+};
 
 type AnyExtension<TTag extends Tag> = Extension<TTag, symbol, ApiShape>;
 type BoundApi = Record<string, (...args: readonly unknown[]) => unknown>;
@@ -109,12 +135,15 @@ export const setupTagikon = <
 
 	const allHookEntries = emptyHookEntries();
 
-	const buildBinding = (ext: AnyExtension<TTag>): ExtensionBinding => {
+	const buildBinding = (
+		ext: AnyExtension<TTag>,
+		permissions: ReadonlySet<Permission>,
+	): ExtensionBinding => {
 		const childrenBoundApiMap: Record<symbol, BoundApi> = {};
 
 		for (const childRegistration of ext.extensions ?? []) {
 			const childExtension = childRegistration.extension as unknown as AnyExtension<TTag>;
-			const childBinding = buildBinding(childExtension);
+			const childBinding = buildBinding(childExtension, childRegistration.permissions);
 			if (childRegistration.namespace) {
 				childrenBoundApiMap[childRegistration.namespace] = childBinding.boundApi;
 			}
@@ -122,8 +151,9 @@ export const setupTagikon = <
 
 		const extensionSymbol = allocateSymbolFor(ext);
 		const aux = storageAdapter.getAuxStore<unknown>(extensionSymbol);
+		const guardedView = createPermissionGuardedView(storageView, permissions);
 		const ctx = createExtensionContext<TTag, unknown, Record<symbol, BoundApi>>(
-			storageView,
+			guardedView,
 			aux,
 			childrenBoundApiMap,
 		);
@@ -156,7 +186,7 @@ export const setupTagikon = <
 	const namespacedApis: Record<symbol, BoundApi> = {};
 	for (const childRegistration of rootRegistrations) {
 		const childExtension = childRegistration.extension as unknown as AnyExtension<TTag>;
-		const childBinding = buildBinding(childExtension);
+		const childBinding = buildBinding(childExtension, childRegistration.permissions);
 		if (childRegistration.namespace) {
 			namespacedApis[childRegistration.namespace] = childBinding.boundApi;
 		}

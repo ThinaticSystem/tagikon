@@ -19,3 +19,13 @@ export class PermissionMismatchError extends ExtensionError {
 		this.acknowledged = acknowledged;
 	}
 }
+
+export class PermissionDeniedError extends ExtensionError {
+	readonly name = "PermissionDeniedError";
+	readonly permission: Permission;
+
+	constructor(permission: Permission) {
+		super(`Storage operation requires "${permission}" permission`);
+		this.permission = permission;
+	}
+}

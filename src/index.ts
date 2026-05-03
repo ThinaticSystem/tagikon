@@ -88,5 +88,5 @@ export { stringIdProvider } from "./plugins/id-providers/string-id-provider/inde
 export { UUID_ID_PROVIDER, uuid } from "./plugins/id-providers/uuid-id-provider/index.ts";
 export type { Uuid } from "./plugins/id-providers/uuid-id-provider/index.ts";
 export { MapStorageAdapter } from "./plugins/storage-adapters/map-storage-adapter/index.ts";
-export { PermissionMismatchError } from "./security/permission.ts";
+export { PermissionDeniedError, PermissionMismatchError } from "./security/permission.ts";
 export type { Permission, PermissionManifest } from "./security/permission.ts";
