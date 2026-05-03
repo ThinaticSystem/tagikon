@@ -1,7 +1,7 @@
 import type { IdOf, Tag } from "../../../core/tag.ts";
 import type { ApiShape, Extension } from "../../../plugin/extension/types.ts";
 
-export interface TagWithSoftDelete extends Tag {
+export interface TagWithSoftDelete<TId> extends Tag<TId> {
 	readonly isDeleted: boolean;
 }
 
@@ -9,11 +9,11 @@ export const SOFT_DELETE_NS: unique symbol = Symbol("soft-delete");
 
 export interface SoftDeleteApi<TId> extends ApiShape {
 	softDeleteTag: (id: TId) => Promise<boolean>;
-	listSoftDeletedTags: () => Promise<TagWithSoftDelete[]>;
+	listSoftDeletedTags: () => Promise<TagWithSoftDelete<TId>[]>;
 	restoreTag: (id: TId) => Promise<void>;
 }
 
-export const createSoftDelete = <TTag extends TagWithSoftDelete>(): Extension<
+export const createSoftDelete = <TTag extends TagWithSoftDelete<unknown>>(): Extension<
 	TTag,
 	typeof SOFT_DELETE_NS,
 	SoftDeleteApi<IdOf<TTag>>
@@ -39,7 +39,7 @@ export const createSoftDelete = <TTag extends TagWithSoftDelete>(): Extension<
 			return true;
 		},
 		async listSoftDeletedTags(ctx) {
-			const all = await ctx.storage.listTags();
+			const all = (await ctx.storage.listTags()) as TagWithSoftDelete<IdOf<TTag>>[];
 			return all.filter((tag) => tag.isDeleted);
 		},
 		async restoreTag(ctx, id) {

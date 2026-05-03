@@ -1,6 +1,4 @@
-import type { TagId } from "../core/ids.ts";
-
-export type TagCondition<TId = TagId> =
+export type TagCondition<TId> =
 	| HasCondition<TId>
 	| TagPropertyCondition
 	| AndCondition<TId>

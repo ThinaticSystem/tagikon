@@ -1,8 +1,8 @@
-import type { ObjectKey, TagId } from "../../core/ids.ts";
+import type { ObjectKey } from "../../core/ids.ts";
 import type { IdOf, Tag } from "../../core/tag.ts";
 import type { AuxStore } from "./aux-store.ts";
 
-export interface StorageAdapter<TTag extends Tag = Tag<TagId>> {
+export interface StorageAdapter<TTag extends Tag = Tag> {
 	createTag(data: Omit<TTag, "id">): Promise<TTag>;
 	getTag(id: IdOf<TTag>): Promise<null | TTag>;
 	listTags(): Promise<TTag[]>;

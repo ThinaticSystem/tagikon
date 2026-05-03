@@ -1,20 +1,22 @@
 import type { Tag } from "./core/tag.ts";
 import type { Extension } from "./plugin/extension/types.ts";
+import type { Uuid } from "./plugins/id-providers/uuid-id-provider/index.ts";
 
 import { expect, suite, test, vi } from "vitest";
 
 import { TagNotFoundError } from "./core/errors.ts";
-import { objectKey, tagId } from "./core/ids.ts";
+import { objectKey } from "./core/ids.ts";
 import { setupTagikon } from "./factory.ts";
 import { use } from "./plugin/extension/use.ts";
+import { uuid, UUID_ID_PROVIDER } from "./plugins/id-providers/uuid-id-provider/index.ts";
 import { MapStorageAdapter } from "./plugins/storage-adapters/map-storage-adapter/index.ts";
 
-interface TagWithLabel extends Tag {
+interface TagWithLabel extends Tag<Uuid> {
 	readonly label: string;
 }
 
 const makeTagikon = () => {
-	const storage = new MapStorageAdapter<TagWithLabel>();
+	const storage = new MapStorageAdapter<TagWithLabel>(UUID_ID_PROVIDER);
 	const tagikon = setupTagikon({ storageAdapter: storage });
 	return { tagikon, storage };
 };
@@ -114,7 +116,7 @@ suite("setupTagikon", () => {
 		test("tapRaw is called before transform with the original input", async () => {
 			const tapRaw = vi.fn();
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(UUID_ID_PROVIDER),
 				extensions: [use<TagWithLabel>({ hooks: { addTag: { tapRaw } } })],
 			});
 			await tagikon.addTag({ label: "observe" });
@@ -126,7 +128,7 @@ suite("setupTagikon", () => {
 
 		test("transform can mutate the input before storage write", async () => {
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(UUID_ID_PROVIDER),
 				extensions: [
 					use<TagWithLabel>({
 						hooks: {
@@ -146,7 +148,7 @@ suite("setupTagikon", () => {
 		test("after hook receives the transformed input and created tag", async () => {
 			const after = vi.fn();
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(UUID_ID_PROVIDER),
 				extensions: [use<TagWithLabel>({ hooks: { addTag: { after } } })],
 			});
 			const tag = await tagikon.addTag({ label: "hook-test" });
@@ -158,7 +160,7 @@ suite("setupTagikon", () => {
 		const MY_EXTENSION_NS: unique symbol = Symbol("my-extension");
 
 		test("exposes custom API under the extension namespace symbol", async () => {
-			const extension: Extension<Tag, typeof MY_EXTENSION_NS, { greet(): string }> = {
+			const extension: Extension<Tag<Uuid>, typeof MY_EXTENSION_NS, { greet(): string }> = {
 				namespace: MY_EXTENSION_NS,
 				api: {
 					greet(_ctx) {
@@ -167,14 +169,18 @@ suite("setupTagikon", () => {
 				},
 			};
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter(),
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
 				extensions: [use(extension)],
 			});
 			expect(tagikon[MY_EXTENSION_NS].greet()).toBe("hello");
 		});
 
 		test("custom API receives ctx with storage access", async () => {
-			const extension: Extension<Tag, typeof MY_EXTENSION_NS, { countTags(): Promise<number> }> = {
+			const extension: Extension<
+				Tag<Uuid>,
+				typeof MY_EXTENSION_NS,
+				{ countTags(): Promise<number> }
+			> = {
 				namespace: MY_EXTENSION_NS,
 				permissions: { permissions: ["tag:read"] },
 				api: {
@@ -185,7 +191,7 @@ suite("setupTagikon", () => {
 				},
 			};
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter(),
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
 				extensions: [use(extension, { permissions: ["tag:read"] })],
 			});
 			await tagikon.addTag({});
@@ -211,7 +217,7 @@ suite("setupTagikon", () => {
 			};
 
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(UUID_ID_PROVIDER),
 				extensions: [use<TagWithLabel>(wrapper)],
 			});
 
@@ -224,9 +230,9 @@ suite("setupTagikon", () => {
 			interface CounterAux {
 				readonly count: number;
 			}
-			const COUNTER_KEY = tagId("singleton");
+			const COUNTER_KEY = uuid("singleton");
 			const counter: Extension<
-				Tag,
+				Tag<Uuid>,
 				typeof COUNTER_NS,
 				{ getCount(): Promise<number> },
 				CounterAux
@@ -252,7 +258,7 @@ suite("setupTagikon", () => {
 				readonly [K in typeof COUNTER_NS]: { getCount(): Promise<number> };
 			};
 			const wrapper: Extension<
-				Tag,
+				Tag<Uuid>,
 				typeof WRAPPER_NS,
 				{ total(): Promise<number> },
 				unknown,
@@ -268,7 +274,7 @@ suite("setupTagikon", () => {
 			};
 
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter(),
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
 				extensions: [use(wrapper)],
 			});
 
@@ -280,7 +286,7 @@ suite("setupTagikon", () => {
 
 		test("descendant namespace is NOT exposed on the top-level tagikon object", async () => {
 			const PRIVATE_NS: unique symbol = Symbol("private");
-			const privateExt: Extension<Tag, typeof PRIVATE_NS, { secret(): string }> = {
+			const privateExt: Extension<Tag<Uuid>, typeof PRIVATE_NS, { secret(): string }> = {
 				namespace: PRIVATE_NS,
 				api: { secret: (_ctx) => "shhh" },
 			};
@@ -290,7 +296,7 @@ suite("setupTagikon", () => {
 			};
 			const PUBLIC_NS: unique symbol = Symbol("public");
 			const publicExt: Extension<
-				Tag,
+				Tag<Uuid>,
 				typeof PUBLIC_NS,
 				{ getSecret(): string },
 				unknown,
@@ -306,7 +312,7 @@ suite("setupTagikon", () => {
 			};
 
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter(),
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
 				extensions: [use(publicExt)],
 			});
 
@@ -319,7 +325,7 @@ suite("setupTagikon", () => {
 			const B_NS: unique symbol = Symbol("b");
 
 			const extA: Extension<
-				Tag,
+				Tag<Uuid>,
 				typeof A_NS,
 				{ markFirst(): Promise<void>; ownAuxSize(): Promise<number> }
 			> = {
@@ -335,7 +341,7 @@ suite("setupTagikon", () => {
 					},
 				},
 			};
-			const extB: Extension<Tag, typeof B_NS, { ownAuxSize(): Promise<number> }> = {
+			const extB: Extension<Tag<Uuid>, typeof B_NS, { ownAuxSize(): Promise<number> }> = {
 				namespace: B_NS,
 				api: {
 					async ownAuxSize(ctx) {
@@ -345,7 +351,7 @@ suite("setupTagikon", () => {
 			};
 
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter(),
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
 				extensions: [use(extA), use(extB)],
 			});
 
@@ -357,13 +363,13 @@ suite("setupTagikon", () => {
 	});
 
 	suite("extension (TagImplement)", () => {
-		interface TagWithDesc extends Tag {
+		interface TagWithDesc extends Tag<Uuid> {
 			readonly description: string;
 		}
 
 		test("addTag propagates extension fields through transform", async () => {
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithDesc>(),
+				storageAdapter: new MapStorageAdapter<TagWithDesc>(UUID_ID_PROVIDER),
 				extensions: [
 					use<TagWithDesc>({
 						hooks: {

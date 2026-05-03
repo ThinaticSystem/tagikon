@@ -1,20 +1,22 @@
 import type { Tag } from "../../../core/tag.ts";
 import type { IdProvider } from "../../../plugin/id-provider/types.ts";
+import type { Uuid } from "../../id-providers/uuid-id-provider/index.ts";
 
 import { expect, suite, test } from "vitest";
 
 import { TagNotFoundError } from "../../../core/errors.ts";
-import { objectKey, tagId } from "../../../core/ids.ts";
+import { objectKey } from "../../../core/ids.ts";
+import { uuid, UUID_ID_PROVIDER } from "../../id-providers/uuid-id-provider/index.ts";
 import { MapStorageAdapter } from "./index.ts";
 
-interface TagWithName extends Tag {
+interface TagWithName extends Tag<Uuid> {
 	readonly name: string;
 }
 
 suite("MapStorageAdapter", () => {
 	suite("createTag", () => {
 		test("creates a tag and assigns an id", async () => {
-			const adapter = new MapStorageAdapter<TagWithName>();
+			const adapter = new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER);
 			const tag = await adapter.createTag({ name: "work" });
 			expect(tag.name).toBe("work");
 			expect(typeof tag.id).toBe("string");
@@ -23,22 +25,22 @@ suite("MapStorageAdapter", () => {
 
 	suite("getTag", () => {
 		test("returns the tag by id", async () => {
-			const adapter = new MapStorageAdapter();
+			const adapter = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
 			const created = await adapter.createTag({});
 			const found = await adapter.getTag(created.id);
 			expect(found).toEqual(created);
 		});
 
 		test("returns null for unknown id", async () => {
-			const adapter = new MapStorageAdapter();
-			const result = await adapter.getTag(tagId("nonexistent"));
+			const adapter = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
+			const result = await adapter.getTag(uuid("nonexistent"));
 			expect(result).toBeNull();
 		});
 	});
 
 	suite("listTags", () => {
 		test("returns all created tags", async () => {
-			const adapter = new MapStorageAdapter();
+			const adapter = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
 			await adapter.createTag({});
 			await adapter.createTag({});
 			const all = await adapter.listTags();
@@ -48,32 +50,32 @@ suite("MapStorageAdapter", () => {
 
 	suite("updateTag", () => {
 		test("updates tag fields", async () => {
-			const adapter = new MapStorageAdapter<TagWithName>();
+			const adapter = new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER);
 			const tag = await adapter.createTag({ name: "old" });
 			const updated = await adapter.updateTag(tag.id, { name: "new" });
 			expect(updated.name).toBe("new");
 		});
 
 		test("throws TagNotFoundError for unknown id", async () => {
-			const adapter = new MapStorageAdapter();
-			await expect(adapter.updateTag(tagId("ghost"), {})).rejects.toBeInstanceOf(TagNotFoundError);
+			const adapter = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
+			await expect(adapter.updateTag(uuid("ghost"), {})).rejects.toBeInstanceOf(TagNotFoundError);
 		});
 	});
 
 	suite("deleteTag", () => {
 		test("returns true when tag existed", async () => {
-			const adapter = new MapStorageAdapter();
+			const adapter = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
 			const tag = await adapter.createTag({});
 			expect(await adapter.deleteTag(tag.id)).toBe(true);
 		});
 
 		test("returns false when tag did not exist", async () => {
-			const adapter = new MapStorageAdapter();
-			expect(await adapter.deleteTag(tagId("ghost"))).toBe(false);
+			const adapter = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
+			expect(await adapter.deleteTag(uuid("ghost"))).toBe(false);
 		});
 
 		test("cleans up relations on delete", async () => {
-			const adapter = new MapStorageAdapter();
+			const adapter = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
 			const tag = await adapter.createTag({});
 			await adapter.addRelations(tag.id, [objectKey("file1")]);
 			await adapter.deleteTag(tag.id);
@@ -84,7 +86,7 @@ suite("MapStorageAdapter", () => {
 
 	suite("relations", () => {
 		test("addRelations / listTagObjects / listObjectTags", async () => {
-			const adapter = new MapStorageAdapter();
+			const adapter = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
 			const tag = await adapter.createTag({});
 			await adapter.addRelations(tag.id, [objectKey("img1"), objectKey("img2")]);
 
@@ -95,7 +97,7 @@ suite("MapStorageAdapter", () => {
 		});
 
 		test("removeRelations removes only specified keys", async () => {
-			const adapter = new MapStorageAdapter();
+			const adapter = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
 			const tag = await adapter.createTag({});
 			await adapter.addRelations(tag.id, [objectKey("a"), objectKey("b"), objectKey("c")]);
 			await adapter.removeRelations(tag.id, [objectKey("b")]);
@@ -113,9 +115,7 @@ suite("MapStorageAdapter", () => {
 				serialize: (id) => String(id),
 				deserialize: (raw) => Number(raw),
 			};
-			const adapter = new MapStorageAdapter<Tag<number>>({
-				idPlugin: numericPlugin,
-			});
+			const adapter = new MapStorageAdapter<Tag<number>>(numericPlugin);
 			const tag = await adapter.createTag({});
 			expect(tag.id).toBe(1);
 			expect(typeof tag.id).toBe("number");
@@ -128,9 +128,7 @@ suite("MapStorageAdapter", () => {
 				serialize: (id) => String(id),
 				deserialize: (raw) => Number(raw),
 			};
-			const adapter = new MapStorageAdapter<Tag<number>>({
-				idPlugin: numericPlugin,
-			});
+			const adapter = new MapStorageAdapter<Tag<number>>(numericPlugin);
 			const tag = await adapter.createTag({});
 			await adapter.addRelations(tag.id, [objectKey("obj1")]);
 			const tagIds = await adapter.listObjectTags(objectKey("obj1"));

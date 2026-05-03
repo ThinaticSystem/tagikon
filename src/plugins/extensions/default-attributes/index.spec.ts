@@ -1,13 +1,15 @@
 import type { Tag } from "../../../core/tag.ts";
+import type { Uuid } from "../../id-providers/uuid-id-provider/index.ts";
 
 import { expect, suite, test } from "vitest";
 
 import { setupTagikon } from "../../../factory.ts";
 import { use } from "../../../plugin/extension/use.ts";
+import { UUID_ID_PROVIDER } from "../../id-providers/uuid-id-provider/index.ts";
 import { MapStorageAdapter } from "../../storage-adapters/map-storage-adapter/index.ts";
 import { createDefaultAttributes } from "./index.ts";
 
-interface TagWithMeta extends Tag {
+interface TagWithMeta extends Tag<Uuid> {
 	readonly label?: string;
 	readonly priority?: number;
 }
@@ -15,7 +17,7 @@ interface TagWithMeta extends Tag {
 suite("createDefaultAttributes", () => {
 	suite("addTag", () => {
 		test("fills in attributes absent from input", async () => {
-			const storage = new MapStorageAdapter<TagWithMeta>();
+			const storage = new MapStorageAdapter<TagWithMeta>(UUID_ID_PROVIDER);
 			const extension = createDefaultAttributes<TagWithMeta>({
 				label: () => "default-label",
 				priority: () => 0,
@@ -28,7 +30,7 @@ suite("createDefaultAttributes", () => {
 		});
 
 		test("explicit input takes precedence over defaults", async () => {
-			const storage = new MapStorageAdapter<TagWithMeta>();
+			const storage = new MapStorageAdapter<TagWithMeta>(UUID_ID_PROVIDER);
 			const extension = createDefaultAttributes<TagWithMeta>({
 				label: () => "default-label",
 				priority: () => 0,
@@ -42,7 +44,7 @@ suite("createDefaultAttributes", () => {
 
 		test("provider function is called freshly on each addTag", async () => {
 			let count = 0;
-			const storage = new MapStorageAdapter<TagWithMeta>();
+			const storage = new MapStorageAdapter<TagWithMeta>(UUID_ID_PROVIDER);
 			const extension = createDefaultAttributes<TagWithMeta>({
 				priority: () => ++count,
 			});
@@ -55,7 +57,7 @@ suite("createDefaultAttributes", () => {
 		});
 
 		test("partial input: absent attributes receive defaults, present ones are preserved", async () => {
-			const storage = new MapStorageAdapter<TagWithMeta>();
+			const storage = new MapStorageAdapter<TagWithMeta>(UUID_ID_PROVIDER);
 			const extension = createDefaultAttributes<TagWithMeta>({
 				label: () => "fallback",
 				priority: () => 5,

@@ -1,9 +1,11 @@
 import type { ObjectKey } from "../core/ids.ts";
 import type { Tag } from "../core/tag.ts";
+import type { Uuid } from "../plugins/id-providers/uuid-id-provider/index.ts";
 
 import { expect, suite, test } from "vitest";
 
 import { objectKey } from "../core/ids.ts";
+import { UUID_ID_PROVIDER } from "../plugins/id-providers/uuid-id-provider/index.ts";
 import { MapStorageAdapter } from "../plugins/storage-adapters/map-storage-adapter/index.ts";
 import {
 	and,
@@ -21,11 +23,11 @@ import {
 } from "./condition.ts";
 import { MemoryFinder } from "./memory-finder.ts";
 
-interface TagWithName extends Tag {
+interface TagWithName extends Tag<Uuid> {
 	readonly name: string;
 }
 
-interface TagWithScore extends Tag {
+interface TagWithScore extends Tag<Uuid> {
 	readonly score: number;
 }
 
@@ -46,7 +48,7 @@ const assertContainsAll = (actual: Iterable<ObjectKey>, expected: Iterable<Objec
  * - obj3: tag-a
  */
 async function setupHas() {
-	const storage = new MapStorageAdapter();
+	const storage = new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER);
 
 	const tags = {
 		a: await storage.createTag({ name: "a" }),
@@ -68,7 +70,7 @@ async function setupHas() {
  * - name="bar": obj3
  */
 async function setupStringTags() {
-	const storage = new MapStorageAdapter<TagWithName>();
+	const storage = new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER);
 	const finder = new MemoryFinder<TagWithName>();
 
 	const tags = {
@@ -91,7 +93,7 @@ async function setupStringTags() {
  * - score=30: obj2, obj3
  */
 async function setupScoreTags() {
-	const storage = new MapStorageAdapter<TagWithScore>();
+	const storage = new MapStorageAdapter<TagWithScore>(UUID_ID_PROVIDER);
 	const finder = new MemoryFinder<TagWithScore>();
 
 	const tags = {

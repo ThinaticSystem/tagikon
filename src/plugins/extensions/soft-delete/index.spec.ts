@@ -1,3 +1,4 @@
+import type { Uuid } from "../../id-providers/uuid-id-provider/index.ts";
 import type { TagWithSoftDelete } from "./index.ts";
 
 import { expect, suite, test } from "vitest";
@@ -7,12 +8,13 @@ import { setupTagikon } from "../../../factory.ts";
 import { not, tagProperty } from "../../../finder/condition.ts";
 import { MemoryFinder } from "../../../finder/memory-finder.ts";
 import { use } from "../../../plugin/extension/use.ts";
+import { UUID_ID_PROVIDER } from "../../id-providers/uuid-id-provider/index.ts";
 import { MapStorageAdapter } from "../../storage-adapters/map-storage-adapter/index.ts";
 import { SOFT_DELETE_NS, createSoftDelete } from "./index.ts";
 
 const setup = () => {
-	const storage = new MapStorageAdapter<TagWithSoftDelete>();
-	const extension = createSoftDelete<TagWithSoftDelete>();
+	const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>(UUID_ID_PROVIDER);
+	const extension = createSoftDelete<TagWithSoftDelete<Uuid>>();
 	const server = setupTagikon({
 		storageAdapter: storage,
 		extensions: [use(extension, { permissions: ["tag:read", "tag:write"] })],
@@ -124,8 +126,8 @@ suite("createSoftDelete", () => {
 
 suite("TagPropertyCondition with MemoryFinder", () => {
 	test("tag-property: finds objects tagged with tags matching the property value", async () => {
-		const storage = new MapStorageAdapter<TagWithSoftDelete>();
-		const finder = new MemoryFinder<TagWithSoftDelete>();
+		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>(UUID_ID_PROVIDER);
+		const finder = new MemoryFinder<TagWithSoftDelete<Uuid>>();
 
 		const active = await storage.createTag({ isDeleted: false });
 		const deleted = await storage.createTag({ isDeleted: true });
@@ -139,8 +141,8 @@ suite("TagPropertyCondition with MemoryFinder", () => {
 	});
 
 	test("not(tag-property): excludes objects tagged with matching tags", async () => {
-		const storage = new MapStorageAdapter<TagWithSoftDelete>();
-		const finder = new MemoryFinder<TagWithSoftDelete>();
+		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>(UUID_ID_PROVIDER);
+		const finder = new MemoryFinder<TagWithSoftDelete<Uuid>>();
 
 		const active = await storage.createTag({ isDeleted: false });
 		const deleted = await storage.createTag({ isDeleted: true });

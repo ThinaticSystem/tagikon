@@ -62,14 +62,14 @@ export const createHierarchy = <TTag extends Tag>(): Extension<
 	api: {
 		async moveTag(ctx, id, parentId) {
 			const tag = await ctx.storage.getTag(id);
-			if (!tag) throw new TagNotFoundError(id as never);
+			if (!tag) throw new TagNotFoundError(id);
 
 			if (parentId !== null) {
 				// When setting a new parent
 
 				// validate that it exists
 				const parentTag = await ctx.storage.getTag(parentId);
-				if (!parentTag) throw new TagNotFoundError(parentId as never);
+				if (!parentTag) throw new TagNotFoundError(parentId);
 
 				// Walk ancestors of newParentId to detect cycles
 				let current: null | IdOf<TTag> = parentId;
@@ -99,7 +99,7 @@ export const createHierarchy = <TTag extends Tag>(): Extension<
 
 		async getParent(ctx, id) {
 			const entry = await ctx.aux.find(id);
-			if (!entry) throw new TagNotFoundError(id as never);
+			if (!entry) throw new TagNotFoundError(id);
 
 			return entry.parentId ?? null;
 		},

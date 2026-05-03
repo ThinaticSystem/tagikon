@@ -1,13 +1,12 @@
-import type { ObjectKey, TagId } from "../../../core/ids.ts";
+import type { ObjectKey } from "../../../core/ids.ts";
 import type { IdOf, Tag } from "../../../core/tag.ts";
 import type { IdProvider } from "../../../plugin/id-provider/types.ts";
 import type { AuxStore } from "../../../plugin/storage-adapter/aux-store.ts";
 import type { StorageAdapter } from "../../../plugin/storage-adapter/types.ts";
 
 import { TagNotFoundError } from "../../../core/errors.ts";
-import { UUID_ID_PROVIDER } from "../../id-providers/uuid-id-provider/index.ts";
 
-export class MapStorageAdapter<TTag extends Tag = Tag<TagId>> implements StorageAdapter<TTag> {
+export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements StorageAdapter<TTag> {
 	// Store tags keyed by their serialized id string for uniform lookup.
 	readonly #tags = new Map<string, TTag>();
 	// tagId string → Set of objectKey strings
@@ -19,8 +18,8 @@ export class MapStorageAdapter<TTag extends Tag = Tag<TagId>> implements Storage
 	readonly #auxStoreWrappers = new Map<symbol, AuxStore<IdOf<TTag>, unknown>>();
 	readonly #idPlugin: IdProvider<IdOf<TTag>>;
 
-	constructor(options?: { idPlugin?: IdProvider<IdOf<TTag>> }) {
-		this.#idPlugin = options?.idPlugin ?? (UUID_ID_PROVIDER as unknown as IdProvider<IdOf<TTag>>);
+	constructor(idPlugin: IdProvider<IdOf<TTag>>) {
+		this.#idPlugin = idPlugin;
 	}
 
 	async createTag(data: Omit<TTag, "id">): Promise<TTag> {
@@ -43,7 +42,7 @@ export class MapStorageAdapter<TTag extends Tag = Tag<TagId>> implements Storage
 	async updateTag(id: IdOf<TTag>, patch: Partial<Omit<TTag, "id">>): Promise<TTag> {
 		const key = this.#idPlugin.serialize(id);
 		const existing = this.#tags.get(key);
-		if (!existing) throw new TagNotFoundError(id as unknown as TagId);
+		if (!existing) throw new TagNotFoundError(id);
 
 		const updated = { ...existing, ...patch } as TTag;
 		this.#tags.set(key, updated);

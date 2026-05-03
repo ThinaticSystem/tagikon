@@ -1,4 +1,4 @@
-import type { ObjectKey, TagId } from "./ids.ts";
+import type { ObjectKey } from "./ids.ts";
 
 export class TagikonError extends Error {}
 
@@ -16,12 +16,12 @@ export class NamespaceNotFoundError extends IllegalExtensionDefinitionError {
 	}
 }
 
-export class TagNotFoundError extends TagikonError {
+export class TagNotFoundError<TId = unknown> extends TagikonError {
 	readonly name = "TagNotFoundError";
-	readonly tagId: TagId;
+	readonly tagId: TId;
 
-	constructor(tagId: TagId) {
-		super(`Tag not found: ${tagId}`);
+	constructor(tagId: TId) {
+		super(`Tag not found: ${String(tagId)}`);
 		this.tagId = tagId;
 	}
 }
@@ -36,13 +36,13 @@ export class TagAlreadyExistsError extends TagikonError {
 	}
 }
 
-export class ObjectNotTaggedError extends TagikonError {
+export class ObjectNotTaggedError<TId = unknown> extends TagikonError {
 	readonly name = "ObjectNotTaggedError";
-	readonly tagId: TagId;
+	readonly tagId: TId;
 	readonly objectKey: ObjectKey;
 
-	constructor(tagId: TagId, objectKey: ObjectKey) {
-		super(`Object "${objectKey}" is not tagged with "${tagId}"`);
+	constructor(tagId: TId, objectKey: ObjectKey) {
+		super(`Object "${objectKey}" is not tagged with "${String(tagId)}"`);
 		this.tagId = tagId;
 		this.objectKey = objectKey;
 	}

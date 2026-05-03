@@ -7,9 +7,8 @@ export {
 	TagNotFoundError,
 	TagikonError,
 } from "./core/errors.ts";
-export { objectKey, tagId } from "./core/ids.ts";
-export type { ObjectKey, TagId } from "./core/ids.ts";
-export type { TagRelation } from "./core/relation.ts";
+export { objectKey } from "./core/ids.ts";
+export type { ObjectKey } from "./core/ids.ts";
 export type { IdOf, Tag } from "./core/tag.ts";
 export { setupTagikon } from "./factory.ts";
 export type { CoreApi, SetupTagikonOptions } from "./factory.ts";
@@ -86,7 +85,8 @@ export { SOFT_DELETE_NS, createSoftDelete } from "./plugins/extensions/soft-dele
 export type { SoftDeleteApi, TagWithSoftDelete } from "./plugins/extensions/soft-delete/index.ts";
 export * as idProviders from "./plugins/id-providers/index.ts";
 export { stringIdProvider } from "./plugins/id-providers/string-id-provider/index.ts";
-export { UUID_ID_PROVIDER } from "./plugins/id-providers/uuid-id-provider/index.ts";
+export { UUID_ID_PROVIDER, uuid } from "./plugins/id-providers/uuid-id-provider/index.ts";
+export type { Uuid } from "./plugins/id-providers/uuid-id-provider/index.ts";
 export { MapStorageAdapter } from "./plugins/storage-adapters/map-storage-adapter/index.ts";
 export { PermissionMismatchError } from "./security/permission.ts";
 export type { Permission, PermissionManifest } from "./security/permission.ts";

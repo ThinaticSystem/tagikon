@@ -1,9 +1,9 @@
-import type { TagId } from "../core/ids.ts";
+import type { Uuid } from "../plugins/id-providers/uuid-id-provider/index.ts";
 import type { OrCondition } from "./condition.ts";
 
 import { expect, suite, test } from "vitest";
 
-import { tagId } from "../core/ids.ts";
+import { uuid } from "../plugins/id-providers/uuid-id-provider/index.ts";
 import {
 	and,
 	has,
@@ -21,7 +21,7 @@ import {
 
 suite("condition builders", () => {
 	test("has creates a HasCondition", () => {
-		const id = tagId("abc");
+		const id = uuid("abc");
 		const cond = has(id);
 
 		expect(cond.type).toBe("has");
@@ -29,7 +29,7 @@ suite("condition builders", () => {
 	});
 
 	test("and creates an AndCondition", () => {
-		const id = tagId("a");
+		const id = uuid("a");
 		const cond = and([has(id)]);
 
 		expect(cond.type).toBe("and");
@@ -37,7 +37,7 @@ suite("condition builders", () => {
 	});
 
 	test("or creates an OrCondition", () => {
-		const id = tagId("a");
+		const id = uuid("a");
 		const cond = or([has(id)]);
 
 		expect(cond.type).toBe("or");
@@ -45,7 +45,7 @@ suite("condition builders", () => {
 	});
 
 	test("not creates a NotCondition", () => {
-		const id = tagId("a");
+		const id = uuid("a");
 		const cond = not(has(id));
 
 		expect(cond.type).toBe("not");
@@ -53,8 +53,8 @@ suite("condition builders", () => {
 	});
 
 	test("conditions can be nested", () => {
-		const id1 = tagId("a");
-		const id2 = tagId("b");
+		const id1 = uuid("a");
+		const id2 = uuid("b");
 		const cond = and([has(id1), or([has(id2)])]);
 
 		expect(cond.type).toBe("and");
@@ -63,7 +63,7 @@ suite("condition builders", () => {
 		expect(cond.conditions[0]!.type).toBe("has");
 
 		expect(cond.conditions[1]!.type).toBe("or");
-		const orCond = cond.conditions[1] as OrCondition<TagId>;
+		const orCond = cond.conditions[1] as OrCondition<Uuid>;
 		expect(orCond.conditions).toHaveLength(1);
 		expect(orCond.conditions[0]!.type).toBe("has");
 	});

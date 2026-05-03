@@ -1,13 +1,17 @@
+import type { Tag } from "../../../core/tag.ts";
+import type { Uuid } from "../../id-providers/uuid-id-provider/index.ts";
+
 import { expect, suite, test } from "vitest";
 
 import { setupTagikon } from "../../../factory.ts";
 import { use } from "../../../plugin/extension/use.ts";
+import { UUID_ID_PROVIDER } from "../../id-providers/uuid-id-provider/index.ts";
 import { MapStorageAdapter } from "../../storage-adapters/map-storage-adapter/index.ts";
 import { HIERARCHY_NS, HierarchyCycleError, createHierarchy } from "./index.ts";
 
 const setup = () => {
-	const storage = new MapStorageAdapter();
-	const extension = createHierarchy();
+	const storage = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
+	const extension = createHierarchy<Tag<Uuid>>();
 	const tagikon = setupTagikon({
 		storageAdapter: storage,
 		extensions: [use(extension, { permissions: ["tag:read", "tag:write"] })],

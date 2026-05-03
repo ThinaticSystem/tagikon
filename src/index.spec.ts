@@ -1,4 +1,4 @@
-import type { ApiShape, Extension, Tag } from "./index.ts";
+import type { ApiShape, Extension, Tag, TagId } from "./index.ts";
 
 import { expect, suite, test } from "vitest";
 
@@ -12,16 +12,19 @@ import {
 	setupTagikon,
 	TagikonError,
 	use,
+	UUID_ID_PROVIDER,
 } from "./index.ts";
 
-interface TagWithName extends Tag {
+interface TagWithName extends Tag<TagId> {
 	readonly name: string;
 }
 
 suite("Public API", () => {
 	suite("core workflow", () => {
 		test("creates and lists tags", async () => {
-			const tagikon = setupTagikon({ storageAdapter: new MapStorageAdapter<TagWithName>() });
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER),
+			});
 
 			const work = await tagikon.addTag({ name: "work" });
 			const personal = await tagikon.addTag({ name: "personal" });
@@ -33,7 +36,9 @@ suite("Public API", () => {
 		});
 
 		test("returns false on delete of nonexistent tag", async () => {
-			const tagikon = setupTagikon({ storageAdapter: new MapStorageAdapter<TagWithName>() });
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER),
+			});
 
 			const tag = await tagikon.addTag({ name: "tmp" });
 
@@ -47,7 +52,9 @@ suite("Public API", () => {
 		});
 
 		test("library errors are instanceof TagikonError", async () => {
-			const tagikon = setupTagikon({ storageAdapter: new MapStorageAdapter() });
+			const tagikon = setupTagikon({
+				storageAdapter: new MapStorageAdapter<Tag<TagId>>(UUID_ID_PROVIDER),
+			});
 
 			const tag = await tagikon.addTag({});
 			await tagikon.deleteTag(tag.id);
@@ -63,7 +70,7 @@ suite("Public API", () => {
 		 * - doc3: personal
 		 */
 		const setupFindScenario = async () => {
-			const storage = new MapStorageAdapter<TagWithName>();
+			const storage = new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER);
 			const extension: Extension<TagWithName> = {
 				finder: new MemoryFinder(),
 			};
@@ -107,12 +114,12 @@ suite("Public API", () => {
 	});
 
 	suite("TagImplement extension", () => {
-		interface TagWithNote extends Tag {
+		interface TagWithNote extends Tag<TagId> {
 			readonly note: string;
 		}
 
 		test("extended tag fields are preserved through addTag", async () => {
-			const storage = new MapStorageAdapter<TagWithNote>();
+			const storage = new MapStorageAdapter<TagWithNote>(UUID_ID_PROVIDER);
 			const tagikon = setupTagikon({
 				storageAdapter: storage,
 				extensions: [
@@ -150,7 +157,7 @@ suite("Public API", () => {
 					},
 				},
 			};
-			const storage = new MapStorageAdapter();
+			const storage = new MapStorageAdapter<Tag<TagId>>(UUID_ID_PROVIDER);
 			const tagikon = setupTagikon({
 				storageAdapter: storage,
 				extensions: [
