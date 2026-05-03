@@ -18,7 +18,12 @@ nvm install \
 nvm use
 
 # Install pnpm
-package_manager=$(npm info ./ packageManager)
+package_manager=$(
+	cat package.json \
+	| jq \
+		--raw-output \
+		'.packageManager'
+)
 npm install \
 	--global \
 	"$package_manager"
