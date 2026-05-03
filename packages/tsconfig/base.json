@@ -1,0 +1,27 @@
+{
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"compilerOptions": {
+		// Environment Settings
+		// See also https://aka.ms/tsconfig/module
+		"target": "esnext", // ES2025
+
+		// Stricter Typechecking Options
+		"noUncheckedIndexedAccess": true,
+		"exactOptionalPropertyTypes": true,
+
+		// Style Options
+		"noPropertyAccessFromIndexSignature": true,
+
+		// Recommended Options
+		"strict": true,
+		"verbatimModuleSyntax": true,
+		"isolatedModules": true,
+		"noUncheckedSideEffectImports": true,
+		"moduleDetection": "force",
+		"skipLibCheck": true,
+
+		// Custom Options
+		"allowImportingTsExtensions": true,
+		"erasableSyntaxOnly": true
+	}
+}

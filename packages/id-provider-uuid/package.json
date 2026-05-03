@@ -1,0 +1,29 @@
+{
+	"name": "@tagikon/id-provider-uuid",
+	"version": "0.1.0",
+	"files": [
+		"built"
+	],
+	"type": "module",
+	"main": "./built/index.mjs",
+	"module": "./built/index.mjs",
+	"types": "./built/index.d.mts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./built/index.d.mts",
+				"default": "./built/index.mjs"
+			}
+		}
+	},
+	"scripts": {
+		"build": "tsdown"
+	},
+	"dependencies": {
+		"@tagikon/core": "workspace:*",
+		"@tagikon/id-provider-string": "workspace:*"
+	},
+	"devDependencies": {
+		"@tagikon/tsconfig": "workspace:*"
+	}
+}

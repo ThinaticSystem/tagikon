@@ -1,8 +1,12 @@
 {
 	"files": [],
 	"references": [
-		{
-			"path": "./tsconfig.lib.json"
-		}
+		{ "path": "./packages/core" },
+		{ "path": "./packages/id-provider-string" },
+		{ "path": "./packages/id-provider-uuid" },
+		{ "path": "./packages/storage-adapter-in-memory-map" },
+		{ "path": "./packages/extension-default-attributes" },
+		{ "path": "./packages/extension-soft-delete" },
+		{ "path": "./packages/extension-hierarchy" }
 	]
 }

@@ -1,0 +1,15 @@
+{
+	"extends": "@tagikon/tsconfig/base.json",
+	"include": ["src/**/*.ts"],
+	"compilerOptions": {
+		"noEmit": true,
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"lib": ["esnext"],
+		"types": ["node"],
+		"paths": {
+			"@tagikon/core": ["../core/src/index.ts"],
+			"@tagikon/id-provider-string": ["../id-provider-string/src/index.ts"]
+		}
+	}
+}

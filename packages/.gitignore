@@ -1,0 +1,10 @@
+# This file is for ignoring files within each package/. For example, if you want to ignore the dist/ directory in a package, you can add "dist/" to this file.
+
+# Dependencies
+/*/node_modules/
+
+# TypeScript
+/*/tsconfig*.tsbuildinfo
+
+# Build output
+/*/built/

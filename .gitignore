@@ -2,11 +2,5 @@
 /node_modules/
 /.pnpm-store/
 
-# TypeScript
-/tsconfig.*.tsbuildinfo
-
-# Build output
-/built/
-
 # Generated documentation
 /docs/generated/

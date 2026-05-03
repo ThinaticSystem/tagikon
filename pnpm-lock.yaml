@@ -39,6 +39,77 @@ importers:
         specifier: ^4.0.18
         version: 4.1.5(@types/node@24.10.11)(vite@7.3.1(@types/node@24.10.11)(yaml@2.8.4))
 
+  packages/core:
+    devDependencies:
+      '@tagikon/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+
+  packages/extension-default-attributes:
+    dependencies:
+      '@tagikon/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@tagikon/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+
+  packages/extension-hierarchy:
+    dependencies:
+      '@tagikon/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@tagikon/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+
+  packages/extension-soft-delete:
+    dependencies:
+      '@tagikon/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@tagikon/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+
+  packages/id-provider-string:
+    dependencies:
+      '@tagikon/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@tagikon/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+
+  packages/id-provider-uuid:
+    dependencies:
+      '@tagikon/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tagikon/id-provider-string':
+        specifier: workspace:*
+        version: link:../id-provider-string
+    devDependencies:
+      '@tagikon/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+
+  packages/storage-adapter-in-memory-map:
+    dependencies:
+      '@tagikon/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@tagikon/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+
+  packages/tsconfig: {}
+
 packages:
 
   '@andrewbranch/untar.js@1.0.3':

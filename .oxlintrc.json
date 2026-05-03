@@ -2,6 +2,9 @@
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["import"],
 	"categories": {},
+	"options": {
+		"typeAware": true
+	},
 	"rules": {
 		"import/consistent-type-specifier-style": "error"
 	},

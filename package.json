@@ -1,28 +1,13 @@
 {
-	"name": "tagikon",
-	"version": "0.1.0",
-	"files": [
-		"built"
-	],
+	"name": "tagikon-workspace",
+	"private": true,
 	"type": "module",
-	"main": "./built/index.mjs",
-	"module": "./built/index.mjs",
-	"types": "./built/index.d.mts",
-	"exports": {
-		".": {
-			"import": {
-				"types": "./built/index.d.mts",
-				"default": "./built/index.mjs"
-			}
-		}
-	},
 	"scripts": {
-		"build": "tsdown",
-		"dev": "node src/index.ts",
+		"build": "pnpm -r build",
 		"format": "oxfmt",
 		"format:dry": "oxfmt --check",
-		"lint": "oxlint --type-aware",
-		"lint:fix": "oxlint --type-aware --fix",
+		"lint": "oxlint",
+		"lint:fix": "oxlint --fix",
 		"typecheck": "tsgo --build",
 		"test": "vitest watch",
 		"test:run": "vitest run",

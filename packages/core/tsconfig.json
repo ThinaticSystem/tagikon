@@ -1,0 +1,17 @@
+{
+	"extends": "@tagikon/tsconfig/base.json",
+	"include": ["src/**/*.ts"],
+	"compilerOptions": {
+		"noEmit": true,
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"lib": ["esnext"],
+		"types": ["node"],
+		"paths": {
+			"@tagikon/core": ["./src/index.ts"],
+			"@tagikon/id-provider-string": ["../id-provider-string/src/index.ts"],
+			"@tagikon/id-provider-uuid": ["../id-provider-uuid/src/index.ts"],
+			"@tagikon/storage-adapter-in-memory-map": ["../storage-adapter-in-memory-map/src/index.ts"]
+		}
+	}
+}
