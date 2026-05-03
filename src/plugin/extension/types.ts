@@ -48,6 +48,9 @@ export interface FinderImplement<TTag extends Tag> {
 //#region Custom API
 export type ApiShape = Record<string, (...args: any[]) => unknown>;
 
+/**
+ * @internal
+ */
 type ApiImplementation<TCtx, TApi extends ApiShape> = {
 	readonly [TKey in keyof TApi]: TApi[TKey] extends (...args: infer TArgs) => infer TReturn
 		? (ctx: TCtx, ...args: TArgs) => TReturn
@@ -67,12 +70,18 @@ export interface ExtensionRegistration<
 }
 
 //#region Children API derivation (utility for callers)
+/**
+ * @internal
+ */
 type UnionToIntersection<TUnion> = (TUnion extends unknown ? (x: TUnion) => void : never) extends (
 	x: infer TIntersect,
 ) => void
 	? TIntersect
 	: never;
 
+/**
+ * @internal
+ */
 type ApiOfRegistration<TRegistration> =
 	TRegistration extends ExtensionRegistration<infer TNamespace, infer TApi>
 		? TNamespace extends symbol

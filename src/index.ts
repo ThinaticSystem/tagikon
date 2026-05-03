@@ -69,7 +69,7 @@ export type {
 	UntagObjectsInput,
 } from "./plugin/extension/types.ts";
 export { use } from "./plugin/extension/use.ts";
-export type { ExtensionRegistration } from "./plugin/extension/use.ts";
+export type { ExtensionRegistration, UseOptions } from "./plugin/extension/use.ts";
 export type { IdProvider } from "./plugin/id-provider/types.ts";
 export type { AuxStore } from "./plugin/storage-adapter/aux-store.ts";
 export type { StorageAdapter } from "./plugin/storage-adapter/types.ts";

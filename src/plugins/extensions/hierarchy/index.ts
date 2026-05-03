@@ -5,6 +5,9 @@ import { TagNotFoundError, TagikonError } from "../../../core/errors.ts";
 
 export const HIERARCHY_NS: unique symbol = Symbol("hierarchy");
 
+/**
+ * @internal
+ */
 interface HierarchyAux<TId> {
 	readonly parentId: null | TId;
 }

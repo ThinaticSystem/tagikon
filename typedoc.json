@@ -1,0 +1,16 @@
+{
+	"$schema": "https://typedoc.org/schema.json",
+	"entryPoints": ["src/index.ts"],
+	"out": "docs/generated",
+	"tsconfig": "./tsconfig.docs.json",
+	"name": "Tagikon",
+	"readme": "readme.md",
+	"includeVersion": true,
+	"excludePrivate": true,
+	"excludeProtected": true,
+	"cleanOutputDir": true,
+	"groupOrder": ["Interfaces", "Type Aliases", "Classes", "Functions", "Variables", "*"],
+	"validation": {
+		"notExported": false
+	}
+}

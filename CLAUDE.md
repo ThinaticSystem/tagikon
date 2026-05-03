@@ -483,12 +483,12 @@ pnpm check         # CI相当の全チェック
 | `src/plugins/extensions/hierarchy/index.ts`                      | `createHierarchy` / `HIERARCHY_NS` / `HierarchyApi` / `HierarchyCycleError`（親子関係を AuxStore で管理するツリープラグイン）                                                                                                                                                                                                                                                 |
 | `src/plugins/extensions/hierarchy/index.spec.ts`                 | HierarchyPlugin 統合テスト（moveTag / listChildren / getParent / listAncestors / listDescendants / orphan / cycle 検出）                                                                                                                                                                                                                                                      |
 | `tsdown.config.ts` / `package.json` / `.gitignore`               | tsdown バンドル設定（ESM + DTS 生成、`dist/` を gitignore / oxfmt 除外）                                                                                                                                                                                                                                                                                                      |
+| `typedoc.json` / `tsconfig.docs.json`                            | TypeDoc 設定（`pnpm docs:generate` で `docs/` に HTML を生成。spec ファイル除外・内部型を `@internal` でマーク）                                                                                                                                                                                                                                                              |
 
 ### 未実装（次に着手）
 
 **着手順序:**
 
-1. **ドキュメント生成** — APIリファレンスを自動生成する仕組み
 1. **モノレポ化** — `@tagikon/core` / `@tagikon/extension-default-attributes` / `@tagikon/id-provider-uuid` / `@tagikon/storage-adapter-in-memory-map` など、プラグインごとにパッケージ分割
 
    以下のプレフィックスを付与する

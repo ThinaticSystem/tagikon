@@ -7,3 +7,6 @@
 
 # Build output
 /built/
+
+# Generated documentation
+/docs/generated/

@@ -56,6 +56,13 @@
 			"type": "npm",
 			"script": "build",
 			"problemMatcher": []
+		},
+		{
+			"label": "docs:generate",
+			"detail": "Generate documentation",
+			"type": "npm",
+			"script": "docs:generate",
+			"problemMatcher": []
 		}
 	]
 }
