@@ -486,11 +486,21 @@ pnpm check         # CI相当の全チェック
 
 **着手順序:**
 
+1. **パーミッションの制限** — 指定されたパーミッションに応じて実際に利用可能なAPIを制限する
 1. **ドキュメント生成** — APIリファレンスを自動生成する仕組み
+1. **モノレポ化** — `@tagikon/core` / `@tagikon/extension-default-attributes` / `@tagikon/id-provider-uuid` / `@tagikon/storage-adapter-in-memory-map` など、プラグインごとにパッケージ分割
+
+   以下のプレフィックスを付与する
+   - `@tagikon/extension-` — Extension（例: `@tagikon/extension-soft-delete`）
+   - `@tagikon/id-provider-` — ID Provider（例: `@tagikon/id-provider-uuid`）
+   - `@tagikon/storage-adapter-` — Storage Adapter（例: `@tagikon/storage-adapter-in-memory-map`）
+
+1. **Drizzle 用 Storage Adapter** — Relational Database 向け Storage Adapter の公式実装
+
+   `@tagikon/storage-adapter-drizzle` パッケージで提供
 
 ### 未確定事項（設計中）
 
-- **パーミッションの制限** — 指定されたパーミッションに応じて実際に利用可能なAPIを制限する
 - **タグの使用回数カウント（usage count）** — コアに持つか、Storage Adapterの集計クエリとして提供するか（どちらにせよプラグインで提供する方向）
 - **タグオブジェクトやauxのシリアライズ** — Storage への保存/読み込み時にどんなオブジェクトでも Serialize/Deserialize できる必要があるので、Serializer/Deserializer 実装をプラグインが実装できる (必須？)ようにする
 
