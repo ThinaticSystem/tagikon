@@ -1,5 +1,6 @@
 import type { ObjectKey } from "../../core/ids.ts";
 import type { IdOf, Tag } from "../../core/tag.ts";
+import type { FindObjectsOptions, ObjectQuery } from "../../query/types.ts";
 import type { AuxStore } from "./aux-store.ts";
 
 export interface StorageAdapter<TTag extends Tag = Tag> {
@@ -16,6 +17,24 @@ export interface StorageAdapter<TTag extends Tag = Tag> {
 	removeRelations(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void>;
 	listObjectTags(objectKey: ObjectKey): Promise<IdOf<TTag>[]>;
 	listTagObjects(tagId: IdOf<TTag>): Promise<ObjectKey[]>;
+
+	/**
+	 * Find object keys matching the given query. Results are sorted
+	 * lexicographically by the underlying object key string so that pagination
+	 * is deterministic.
+	 *
+	 * Adapters that cannot compile the query natively should delegate to
+	 * `evaluateObjectQueryInMemory` from `@tagikon/core`.
+	 */
+	findObjects(query: ObjectQuery<IdOf<TTag>>, options?: FindObjectsOptions): Promise<ObjectKey[]>;
+
+	/**
+	 * Count object keys matching the given query.
+	 *
+	 * Adapters that cannot compile the query natively should delegate to
+	 * `countObjectQueryInMemory` from `@tagikon/core`.
+	 */
+	countObjects(query: ObjectQuery<IdOf<TTag>>): Promise<number>;
 
 	/**
 	 * Get the auxiliary data store for an extension. Used by the runtime to bind

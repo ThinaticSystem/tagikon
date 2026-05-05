@@ -12,6 +12,7 @@ import { TagNotFoundError } from "./core/errors.ts";
 import { objectKey } from "./core/ids.ts";
 import { setupTagikon } from "./factory.ts";
 import { use } from "./plugin/extension/use.ts";
+import { taggedWithAny, tagsById } from "./query/builders.ts";
 import { PermissionDeniedError } from "./security/permission.ts";
 
 interface TagWithLabel extends Tag<Uuid> {
@@ -429,6 +430,16 @@ suite("setupTagikon", () => {
 				method: "listTagObjects",
 				permission: "relation:read",
 				call: (s) => s.listTagObjects(uuid("dummy")),
+			},
+			{
+				method: "findObjects",
+				permission: "relation:read",
+				call: (s) => s.findObjects(taggedWithAny(tagsById([uuid("dummy")]))),
+			},
+			{
+				method: "countObjects",
+				permission: "relation:read",
+				call: (s) => s.countObjects(taggedWithAny(tagsById([uuid("dummy")]))),
 			},
 		];
 

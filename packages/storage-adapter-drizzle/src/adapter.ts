@@ -1,7 +1,20 @@
 import type { TagikonSchema } from "./schema.ts";
-import type { AuxStore, IdOf, IdProvider, ObjectKey, StorageAdapter, Tag } from "@tagikon/core";
+import type {
+	AuxStore,
+	FindObjectsOptions,
+	IdOf,
+	IdProvider,
+	ObjectKey,
+	ObjectQuery,
+	StorageAdapter,
+	Tag,
+} from "@tagikon/core";
 
-import { TagNotFoundError } from "@tagikon/core";
+import {
+	countObjectQueryInMemory,
+	evaluateObjectQueryInMemory,
+	TagNotFoundError,
+} from "@tagikon/core";
 import { and, eq, inArray } from "drizzle-orm";
 
 // Minimal structural type satisfied by all Drizzle database instances (SQLite, PostgreSQL, etc.)
@@ -144,6 +157,19 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 			.where(eq(this.#schema.relations.tagId, this.#idPlugin.serialize(tagId)))) as RelationRow[];
 
 		return rows.map((row) => row.objectKey as ObjectKey);
+	}
+
+	async findObjects(
+		query: ObjectQuery<IdOf<TTag>>,
+		options?: FindObjectsOptions,
+	): Promise<ObjectKey[]> {
+		// TODO: v1 delegates to the in-memory evaluator. The new interface enables
+		// SQL compilation as a follow-up optimization (see CLAUDE.md "未確定事項").
+		return evaluateObjectQueryInMemory<TTag>(query, this, options);
+	}
+
+	async countObjects(query: ObjectQuery<IdOf<TTag>>): Promise<number> {
+		return countObjectQueryInMemory<TTag>(query, this);
 	}
 
 	getAuxStore<TData = unknown>(extensionId: symbol): AuxStore<IdOf<TTag>, TData> {

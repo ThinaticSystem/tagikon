@@ -1,7 +1,16 @@
 import type { TagWithSoftDelete } from "./index.ts";
 import type { Uuid } from "@tagikon/id-provider-uuid";
 
-import { MemoryFinder, not, objectKey, setupTagikon, tagProperty, use } from "@tagikon/core";
+import {
+	evaluateObjectQueryInMemory,
+	not,
+	objectKey,
+	propertyEqual,
+	setupTagikon,
+	taggedWithAny,
+	tagsWhere,
+	use,
+} from "@tagikon/core";
 import { UUID_ID_PROVIDER } from "@tagikon/id-provider-uuid";
 import { MapStorageAdapter } from "@tagikon/storage-adapter-in-memory-map";
 import { expect, suite, test } from "vitest";
@@ -120,10 +129,9 @@ suite("createSoftDelete", () => {
 	});
 });
 
-suite("TagPropertyCondition with MemoryFinder", () => {
-	test("tag-property: finds objects tagged with tags matching the property value", async () => {
+suite("tag property queries with evaluateObjectQueryInMemory", () => {
+	test("tagsWhere: finds objects tagged with tags matching the property value", async () => {
 		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>(UUID_ID_PROVIDER);
-		const finder = new MemoryFinder<TagWithSoftDelete<Uuid>>();
 
 		const active = await storage.createTag({ isDeleted: false });
 		const deleted = await storage.createTag({ isDeleted: true });
@@ -132,13 +140,16 @@ suite("TagPropertyCondition with MemoryFinder", () => {
 		await storage.addRelations(deleted.id, [objectKey("obj2")]);
 		await storage.addRelations(active.id, [objectKey("obj3")]);
 
-		const result = await finder.findObjectsByTags(tagProperty("isDeleted", false), storage);
+		const result = await evaluateObjectQueryInMemory(
+			taggedWithAny<Uuid>(tagsWhere(propertyEqual("isDeleted", false))),
+			storage,
+		);
+
 		expect(new Set(result as string[])).toEqual(new Set(["obj1", "obj3"]));
 	});
 
-	test("not(tag-property): excludes objects tagged with matching tags", async () => {
+	test("not(tagsWhere): excludes objects tagged with matching tags", async () => {
 		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>(UUID_ID_PROVIDER);
-		const finder = new MemoryFinder<TagWithSoftDelete<Uuid>>();
 
 		const active = await storage.createTag({ isDeleted: false });
 		const deleted = await storage.createTag({ isDeleted: true });
@@ -146,7 +157,11 @@ suite("TagPropertyCondition with MemoryFinder", () => {
 		await storage.addRelations(active.id, [objectKey("obj1")]);
 		await storage.addRelations(deleted.id, [objectKey("obj2")]);
 
-		const result = await finder.findObjectsByTags(not(tagProperty("isDeleted", true)), storage);
+		const result = await evaluateObjectQueryInMemory(
+			not(taggedWithAny<Uuid>(tagsWhere(propertyEqual("isDeleted", true)))),
+			storage,
+		);
+
 		expect(result).toHaveLength(1);
 		expect(result[0]).toBe(objectKey("obj1"));
 	});

@@ -7,12 +7,13 @@ import { expect, suite, test } from "vitest";
 
 import {
 	and,
-	has,
-	MemoryFinder,
 	not,
 	objectKey,
 	setupTagikon,
+	taggedWithAll,
+	taggedWithAny,
 	TagikonError,
+	tagsById,
 	use,
 } from "./index.ts";
 
@@ -64,7 +65,7 @@ suite("Public API", () => {
 		});
 	});
 
-	suite("find with MemoryFinder", () => {
+	suite("findObjects / countObjects via storage", () => {
 		/**
 		 * - doc1: work, urgent
 		 * - doc2: work + personal
@@ -72,13 +73,7 @@ suite("Public API", () => {
 		 */
 		const setupFindScenario = async () => {
 			const storage = new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER);
-			const extension: Extension<TagWithName> = {
-				finder: new MemoryFinder(),
-			};
-			const tagikon = setupTagikon({
-				storageAdapter: storage,
-				extensions: [use(extension)],
-			});
+			const tagikon = setupTagikon({ storageAdapter: storage });
 
 			const work = await tagikon.addTag({ name: "work" });
 			const personal = await tagikon.addTag({ name: "personal" });
@@ -91,26 +86,43 @@ suite("Public API", () => {
 			return { tagikon, work, personal, urgent };
 		};
 
-		test("has: returns objects with the given tag", async () => {
+		test("taggedWithAny: returns objects with the given tag", async () => {
 			const { tagikon, work } = await setupFindScenario();
-			const result = await tagikon.findObjectsByTags(has(work.id));
+			const result = await tagikon.findObjects(taggedWithAny(tagsById([work.id])));
 			expect(result).toHaveLength(2);
 			expect(result).toContain(objectKey("doc1"));
 			expect(result).toContain(objectKey("doc2"));
 		});
 
-		test("and: intersection of tag-matched objects", async () => {
+		test("taggedWithAll: intersection across multiple tags", async () => {
 			const { tagikon, work, urgent } = await setupFindScenario();
-			const result = await tagikon.findObjectsByTags(and([has(work.id), has(urgent.id)]));
+
+			const result = await tagikon.findObjects(taggedWithAll(tagsById([work.id, urgent.id])));
+
+			expect(result).toHaveLength(1);
+			expect(result).toContain(objectKey("doc1"));
+		});
+
+		test("and: intersection across multiple queries", async () => {
+			const { tagikon, work, urgent } = await setupFindScenario();
+			const result = await tagikon.findObjects(
+				and([taggedWithAny(tagsById([work.id])), taggedWithAny(tagsById([urgent.id]))]),
+			);
 			expect(result).toHaveLength(1);
 			expect(result).toContain(objectKey("doc1"));
 		});
 
 		test("not: excludes matched objects", async () => {
 			const { tagikon, work } = await setupFindScenario();
-			const result = await tagikon.findObjectsByTags(not(has(work.id)));
+			const result = await tagikon.findObjects(not(taggedWithAny(tagsById([work.id]))));
 			expect(result).toHaveLength(1);
 			expect(result).toContain(objectKey("doc3"));
+		});
+
+		test("countObjects: returns count of matching objects", async () => {
+			const { tagikon, work } = await setupFindScenario();
+			const result = await tagikon.countObjects(taggedWithAny(tagsById([work.id])));
+			expect(result).toBe(2);
 		});
 	});
 

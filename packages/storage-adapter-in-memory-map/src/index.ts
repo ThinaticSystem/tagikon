@@ -1,6 +1,19 @@
-import type { AuxStore, IdOf, IdProvider, ObjectKey, StorageAdapter, Tag } from "@tagikon/core";
+import type {
+	AuxStore,
+	FindObjectsOptions,
+	IdOf,
+	IdProvider,
+	ObjectKey,
+	ObjectQuery,
+	StorageAdapter,
+	Tag,
+} from "@tagikon/core";
 
-import { TagNotFoundError } from "@tagikon/core";
+import {
+	countObjectQueryInMemory,
+	evaluateObjectQueryInMemory,
+	TagNotFoundError,
+} from "@tagikon/core";
 
 export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements StorageAdapter<TTag> {
 	// Store tags keyed by their serialized id string for uniform lookup.
@@ -110,6 +123,17 @@ export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements Stora
 		if (!set) return [];
 
 		return Array.from(set) as ObjectKey[];
+	}
+
+	async findObjects(
+		query: ObjectQuery<IdOf<TTag>>,
+		options?: FindObjectsOptions,
+	): Promise<ObjectKey[]> {
+		return evaluateObjectQueryInMemory<TTag>(query, this, options);
+	}
+
+	async countObjects(query: ObjectQuery<IdOf<TTag>>): Promise<number> {
+		return countObjectQueryInMemory<TTag>(query, this);
 	}
 
 	getAuxStore<TData = unknown>(extensionId: symbol): AuxStore<IdOf<TTag>, TData> {

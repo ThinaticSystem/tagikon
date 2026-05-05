@@ -1,7 +1,7 @@
 import type { IdProvider, Tag } from "@tagikon/core";
 import type { Uuid } from "@tagikon/id-provider-uuid";
 
-import { objectKey, TagNotFoundError } from "@tagikon/core";
+import { objectKey, taggedWithAll, taggedWithAny, TagNotFoundError, tagsById } from "@tagikon/core";
 import { uuid, UUID_ID_PROVIDER } from "@tagikon/id-provider-uuid";
 import { expect, suite, test } from "vitest";
 
@@ -102,6 +102,28 @@ suite("MapStorageAdapter", () => {
 			const objects = await adapter.listTagObjects(tag.id);
 			expect(objects).not.toContain(objectKey("b"));
 			expect(objects).toContain(objectKey("a"));
+		});
+	});
+
+	suite("findObjects / countObjects", () => {
+		test("findObjects returns lexicographically sorted matching keys", async () => {
+			const adapter = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
+			const tag = await adapter.createTag({});
+			await adapter.addRelations(tag.id, [objectKey("c"), objectKey("a"), objectKey("b")]);
+			const result = await adapter.findObjects(taggedWithAny(tagsById([tag.id])));
+			expect(result).toEqual([objectKey("a"), objectKey("b"), objectKey("c")]);
+		});
+
+		test("countObjects returns total matching count", async () => {
+			const adapter = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
+			const t1 = await adapter.createTag({});
+			const t2 = await adapter.createTag({});
+			// NOTE: b is tagged with both t1 and t2, so taggedWithAll([t1, t2]) should return only b
+			await adapter.addRelations(t1.id, [objectKey("a"), objectKey("b")]);
+			await adapter.addRelations(t2.id, [objectKey("b"), objectKey("c")]);
+
+			const count = await adapter.countObjects(taggedWithAll(tagsById([t1.id, t2.id])));
+			expect(count).toBe(1);
 		});
 	});
 

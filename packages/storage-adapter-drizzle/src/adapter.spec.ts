@@ -2,7 +2,7 @@ import type { Tag } from "@tagikon/core";
 import type { Uuid } from "@tagikon/id-provider-uuid";
 
 import { createClient } from "@libsql/client";
-import { TagNotFoundError, objectKey } from "@tagikon/core";
+import { TagNotFoundError, objectKey, taggedWithAll, taggedWithAny, tagsById } from "@tagikon/core";
 import { UUID_ID_PROVIDER } from "@tagikon/id-provider-uuid";
 import { drizzle } from "drizzle-orm/libsql";
 import { beforeEach, expect, suite, test } from "vitest";
@@ -407,6 +407,40 @@ suite("DrizzleStorageAdapter", () => {
 			const result = await adapter.listTagObjects(tag.id);
 
 			expect(result.sort()).toEqual([objectKey("f1"), objectKey("f3")].sort());
+		});
+	});
+
+	suite("findObjects / countObjects", () => {
+		test("findObjects returns lexicographically sorted matching keys", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "work" });
+			await adapter.addRelations(tag.id, [objectKey("c"), objectKey("a"), objectKey("b")]);
+			const result = await adapter.findObjects(taggedWithAny(tagsById([tag.id])));
+			expect(result).toEqual([objectKey("a"), objectKey("b"), objectKey("c")]);
+		});
+
+		test("findObjects with taggedWithAll intersects matching tags", async () => {
+			const adapter = await setupAdapter();
+
+			const t1 = await adapter.createTag({ label: "work" });
+			const t2 = await adapter.createTag({ label: "urgent" });
+
+			await adapter.addRelations(t1.id, [objectKey("a"), objectKey("b")]);
+			await adapter.addRelations(t2.id, [objectKey("b"), objectKey("c")]);
+
+			const result = await adapter.findObjects(taggedWithAll(tagsById([t1.id, t2.id])));
+
+			expect(result).toEqual([objectKey("b")]);
+		});
+
+		test("countObjects returns total matching count", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "work" });
+			await adapter.addRelations(tag.id, [objectKey("a"), objectKey("b")]);
+
+			const result = await adapter.countObjects(taggedWithAny(tagsById([tag.id])));
+
+			expect(result).toBe(2);
 		});
 	});
 });

@@ -1,6 +1,5 @@
 import type { ObjectKey } from "./core/ids.ts";
 import type { IdOf, Tag } from "./core/tag.ts";
-import type { TagCondition } from "./finder/condition.ts";
 import type { HookEntry } from "./hook/runner.ts";
 import type { ExtensionStorageView } from "./plugin/extension/context.ts";
 import type {
@@ -8,9 +7,9 @@ import type {
 	ChildrenApiOf,
 	Extension,
 	ExtensionRegistration,
-	FinderImplement,
 } from "./plugin/extension/types.ts";
 import type { StorageAdapter } from "./plugin/storage-adapter/types.ts";
+import type { FindObjectsOptions, ObjectQuery } from "./query/types.ts";
 import type { Permission } from "./security/permission.ts";
 
 import { collectHooks, runPipeline } from "./hook/runner.ts";
@@ -25,7 +24,8 @@ export interface CoreApi<TTag extends Tag> {
 	tagObjects(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void>;
 	untagObjects(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void>;
 	resetWithTags(objectKey: ObjectKey, tagIds: readonly IdOf<TTag>[]): Promise<void>;
-	findObjectsByTags(query: TagCondition<IdOf<TTag>>): Promise<ObjectKey[]>;
+	findObjects(query: ObjectQuery<IdOf<TTag>>, options?: FindObjectsOptions): Promise<ObjectKey[]>;
+	countObjects(query: ObjectQuery<IdOf<TTag>>): Promise<number>;
 }
 
 export interface SetupTagikonOptions<
@@ -52,6 +52,8 @@ const wrapStorageForExtensions = <TTag extends Tag>(
 	removeRelations: storage.removeRelations.bind(storage),
 	listObjectTags: storage.listObjectTags.bind(storage),
 	listTagObjects: storage.listTagObjects.bind(storage),
+	findObjects: storage.findObjects.bind(storage),
+	countObjects: storage.countObjects.bind(storage),
 });
 
 const createPermissionGuardedView = <TTag extends Tag>(
@@ -75,6 +77,8 @@ const createPermissionGuardedView = <TTag extends Tag>(
 		removeRelations: relWrite ? view.removeRelations : () => denied("relation:write"),
 		listObjectTags: relRead ? view.listObjectTags : () => denied("relation:read"),
 		listTagObjects: relRead ? view.listTagObjects : () => denied("relation:read"),
+		findObjects: relRead ? view.findObjects : () => denied("relation:read"),
+		countObjects: relRead ? view.countObjects : () => denied("relation:read"),
 	}) as unknown as ExtensionStorageView<TTag>;
 };
 
@@ -90,7 +94,8 @@ interface OperationHookEntries {
 	tagObjects: AnyHookEntry[];
 	untagObjects: AnyHookEntry[];
 	resetWithTags: AnyHookEntry[];
-	findObjectsByTags: AnyHookEntry[];
+	findObjects: AnyHookEntry[];
+	countObjects: AnyHookEntry[];
 }
 
 const operationKeys = [
@@ -101,7 +106,8 @@ const operationKeys = [
 	"tagObjects",
 	"untagObjects",
 	"resetWithTags",
-	"findObjectsByTags",
+	"findObjects",
+	"countObjects",
 ] as const satisfies readonly (keyof OperationHookEntries)[];
 
 const emptyHookEntries = (): OperationHookEntries => ({
@@ -112,7 +118,8 @@ const emptyHookEntries = (): OperationHookEntries => ({
 	tagObjects: [],
 	untagObjects: [],
 	resetWithTags: [],
-	findObjectsByTags: [],
+	findObjects: [],
+	countObjects: [],
 });
 
 interface ExtensionBinding {
@@ -192,22 +199,6 @@ export const setupTagikon = <
 		}
 	}
 
-	const findFinder = (
-		registrations: readonly ExtensionRegistration<symbol, ApiShape>[],
-	): null | FinderImplement<TTag> => {
-		for (const registration of registrations) {
-			const ext = registration.extension as unknown as AnyExtension<TTag>;
-			if (ext.finder) return ext.finder;
-		}
-		for (const registration of registrations) {
-			const ext = registration.extension as unknown as AnyExtension<TTag>;
-			const found = findFinder(ext.extensions ?? []);
-			if (found) return found;
-		}
-		return null;
-	};
-	const finder = findFinder(rootRegistrations);
-
 	const addTagHooks = collectHooks(allHookEntries.addTag);
 	const listTagsHooks = collectHooks(allHookEntries.listTags);
 	const editTagHooks = collectHooks(allHookEntries.editTag);
@@ -215,7 +206,8 @@ export const setupTagikon = <
 	const tagObjectsHooks = collectHooks(allHookEntries.tagObjects);
 	const untagObjectsHooks = collectHooks(allHookEntries.untagObjects);
 	const resetWithTagsHooks = collectHooks(allHookEntries.resetWithTags);
-	const findObjectsByTagsHooks = collectHooks(allHookEntries.findObjectsByTags);
+	const findObjectsHooks = collectHooks(allHookEntries.findObjects);
+	const countObjectsHooks = collectHooks(allHookEntries.countObjects);
 
 	const coreApi: CoreApi<TTag> = {
 		async addTag(attributes) {
@@ -270,12 +262,20 @@ export const setupTagikon = <
 				for (const tid of toRemove) await storageAdapter.removeRelations(tid, [typed.objectKey]);
 			});
 		},
-		async findObjectsByTags(query) {
-			return runPipeline(findObjectsByTagsHooks, { query }, (input) => {
-				const typed = input as { query: TagCondition<IdOf<TTag>> };
-				if (!finder) return Promise.resolve([] as ObjectKey[]);
-				return finder.findObjectsByTags(typed.query, storageAdapter);
+		async findObjects(query, options) {
+			return runPipeline(findObjectsHooks, { query, options }, (input) => {
+				const typed = input as {
+					query: ObjectQuery<IdOf<TTag>>;
+					options: FindObjectsOptions | undefined;
+				};
+				return storageAdapter.findObjects(typed.query, typed.options);
 			}) as Promise<ObjectKey[]>;
+		},
+		async countObjects(query) {
+			return runPipeline(countObjectsHooks, { query }, (input) => {
+				const typed = input as { query: ObjectQuery<IdOf<TTag>> };
+				return storageAdapter.countObjects(typed.query);
+			}) as Promise<number>;
 		},
 	};
 

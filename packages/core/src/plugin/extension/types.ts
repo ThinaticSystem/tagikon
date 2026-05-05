@@ -1,9 +1,8 @@
 import type { ObjectKey } from "../../core/ids.ts";
 import type { IdOf, Tag } from "../../core/tag.ts";
-import type { TagCondition } from "../../finder/condition.ts";
 import type { HookPhases } from "../../hook/types.ts";
+import type { FindObjectsOptions, ObjectQuery } from "../../query/types.ts";
 import type { Permission, PermissionManifest } from "../../security/permission.ts";
-import type { StorageAdapter } from "../storage-adapter/types.ts";
 import type { ExtensionContext } from "./context.ts";
 
 //#region Hook input / output type aliases per operation
@@ -33,17 +32,15 @@ export type ResetWithTagsInput<TTag extends Tag> = {
 
 export type ListTagsInput = Record<never, never>;
 
-export type FindObjectsByTagsInput<TTag extends Tag> = { query: TagCondition<IdOf<TTag>> };
-//#endregion
+export type FindObjectsInput<TTag extends Tag> = {
+	query: ObjectQuery<IdOf<TTag>>;
+	options: FindObjectsOptions | undefined;
+};
 
-//#region Finder plugin
-export interface FinderImplement<TTag extends Tag> {
-	findObjectsByTags(
-		query: TagCondition<IdOf<TTag>>,
-		storage: StorageAdapter<TTag>,
-	): Promise<ObjectKey[]>;
-}
-// #endregion
+export type CountObjectsInput<TTag extends Tag> = {
+	query: ObjectQuery<IdOf<TTag>>;
+};
+//#endregion
 
 //#region Custom API
 export type ApiShape = Record<string, (...args: any[]) => unknown>;
@@ -149,13 +146,17 @@ export interface Extension<
 			ResetWithTagsInput<TTag>,
 			void
 		>;
-		findObjectsByTags?: HookPhases<
+		findObjects?: HookPhases<
 			ExtensionContext<TTag, TAux, TChildrenApi>,
-			FindObjectsByTagsInput<TTag>,
+			FindObjectsInput<TTag>,
 			ObjectKey[]
 		>;
+		countObjects?: HookPhases<
+			ExtensionContext<TTag, TAux, TChildrenApi>,
+			CountObjectsInput<TTag>,
+			number
+		>;
 	};
-	finder?: FinderImplement<TTag>;
 	api?: ApiImplementation<ExtensionContext<TTag, TAux, TChildrenApi>, TApi>;
 }
 // #endregion

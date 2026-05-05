@@ -12,37 +12,6 @@ export type { ObjectKey } from "./core/ids.ts";
 export type { IdOf, Tag } from "./core/tag.ts";
 export { setupTagikon } from "./factory.ts";
 export type { CoreApi, SetupTagikonOptions } from "./factory.ts";
-export {
-	and,
-	has,
-	not,
-	or,
-	tagProperty,
-	tagPropertyContains,
-	tagPropertyEndsWith,
-	tagPropertyGreaterThan,
-	tagPropertyGreaterThanOrEqual,
-	tagPropertyLessThan,
-	tagPropertyLessThanOrEqual,
-	tagPropertyStartsWith,
-} from "./finder/condition.ts";
-export type {
-	AndCondition,
-	HasCondition,
-	NotCondition,
-	OrCondition,
-	TagCondition,
-	TagPropertyCondition,
-	TagPropertyContainsCondition,
-	TagPropertyEndsWithCondition,
-	TagPropertyEqualCondition,
-	TagPropertyGreaterThanCondition,
-	TagPropertyGreaterThanOrEqualCondition,
-	TagPropertyLessThanCondition,
-	TagPropertyLessThanOrEqualCondition,
-	TagPropertyStartsWithCondition,
-} from "./finder/condition.ts";
-export { MemoryFinder } from "./finder/memory-finder.ts";
 export type {
 	AfterFn,
 	HookPhases,
@@ -58,10 +27,10 @@ export type {
 	AddTagInput,
 	ApiShape,
 	ChildrenApiOf,
+	CountObjectsInput,
 	EditTagInput,
 	Extension,
-	FindObjectsByTagsInput,
-	FinderImplement,
+	FindObjectsInput,
 	ListTagsInput,
 	RemoveTagInput,
 	ResetWithTagsInput,
@@ -73,5 +42,62 @@ export type { ExtensionRegistration, UseOptions } from "./plugin/extension/use.t
 export type { IdProvider } from "./plugin/id-provider/types.ts";
 export type { AuxStore } from "./plugin/storage-adapter/aux-store.ts";
 export type { StorageAdapter } from "./plugin/storage-adapter/types.ts";
+export {
+	and,
+	complementTags,
+	intersectTags,
+	not,
+	or,
+	predicateAnd,
+	predicateNot,
+	predicateOr,
+	propertyContains,
+	propertyEndsWith,
+	propertyEqual,
+	propertyGreaterThan,
+	propertyGreaterThanOrEqual,
+	propertyLessThan,
+	propertyLessThanOrEqual,
+	propertyStartsWith,
+	taggedWithAll,
+	taggedWithAny,
+	tagsById,
+	tagsWhere,
+	unionTags,
+} from "./query/builders.ts";
+export {
+	countObjectQueryInMemory,
+	evaluateObjectQueryInMemory,
+	evaluateTagSelectorAgainstTags,
+} from "./query/evaluator.ts";
+export type {
+	AndObjectQuery,
+	FindObjectsOptions,
+	NotObjectQuery,
+	ObjectQuery,
+	OrObjectQuery,
+	TagPredicate,
+	TagPredicateAnd,
+	TagPredicateLogicalOperator,
+	TagPredicateNot,
+	TagPredicateOr,
+	TagPropertyContainsPredicate,
+	TagPropertyEndsWithPredicate,
+	TagPropertyEqualPredicate,
+	TagPropertyGreaterThanOrEqualPredicate,
+	TagPropertyGreaterThanPredicate,
+	TagPropertyLessThanOrEqualPredicate,
+	TagPropertyLessThanPredicate,
+	TagPropertyPredicate,
+	TagPropertyStartsWithPredicate,
+	TagSelector,
+	TaggedWithAllQuery,
+	TaggedWithAnyQuery,
+	TagsByIdSelector,
+	TagsComplementSelector,
+	TagsIntersectionSelector,
+	TagsUnionSelector,
+	TagsWhereSelector,
+} from "./query/types.ts";
 export { PermissionDeniedError, PermissionMismatchError } from "./security/permission.ts";
 export type { Permission, PermissionManifest } from "./security/permission.ts";
