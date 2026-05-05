@@ -1,0 +1,412 @@
+import type { Tag } from "@tagikon/core";
+import type { Uuid } from "@tagikon/id-provider-uuid";
+
+import { createClient } from "@libsql/client";
+import { TagNotFoundError, objectKey } from "@tagikon/core";
+import { UUID_ID_PROVIDER } from "@tagikon/id-provider-uuid";
+import { drizzle } from "drizzle-orm/libsql";
+import { beforeEach, expect, suite, test } from "vitest";
+
+import { DrizzleStorageAdapter } from "./adapter.ts";
+import { createTagikonSqliteSchema } from "./schema.ts";
+
+interface TagWithLabel extends Tag<Uuid> {
+	readonly label: string;
+}
+
+const setupAdapter = async () => {
+	const client = createClient({ url: ":memory:" });
+
+	await client.execute("CREATE TABLE tagikon_tags (id TEXT PRIMARY KEY, data TEXT NOT NULL)");
+	await client.execute(
+		"CREATE TABLE tagikon_relations (tag_id TEXT NOT NULL, object_key TEXT NOT NULL, PRIMARY KEY (tag_id, object_key))",
+	);
+	await client.execute(
+		"CREATE TABLE tagikon_aux (extension_key TEXT NOT NULL, tag_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY (extension_key, tag_id))",
+	);
+
+	const db = drizzle(client);
+	const schema = createTagikonSqliteSchema();
+	return new DrizzleStorageAdapter<TagWithLabel>(db, schema, UUID_ID_PROVIDER);
+};
+
+suite("DrizzleStorageAdapter", () => {
+	suite("createTag", () => {
+		test("creates a tag and returns it with generated id", async () => {
+			const adapter = await setupAdapter();
+
+			const tag = await adapter.createTag({ label: "work" });
+
+			expect(tag.label).toBe("work");
+			expect(typeof tag.id).toBe("string");
+			expect(tag.id.length).toBeGreaterThan(0);
+		});
+
+		test("persists the tag so getTag can retrieve it", async () => {
+			const adapter = await setupAdapter();
+			const created = await adapter.createTag({ label: "persist-me" });
+			const fetched = await adapter.getTag(created.id);
+
+			expect(fetched).not.toBeNull();
+			expect(fetched).toEqual({
+				label: "persist-me",
+				id: created.id,
+			});
+		});
+	});
+
+	suite("getTag", () => {
+		test("returns null for non-existent id", async () => {
+			const adapter = await setupAdapter();
+			const result = await adapter.getTag(UUID_ID_PROVIDER.generate());
+			expect(result).toBeNull();
+		});
+	});
+
+	suite("listTags", () => {
+		test("returns empty array when no tags exist", async () => {
+			const adapter = await setupAdapter();
+			const tags = await adapter.listTags();
+			expect(tags).toEqual([]);
+		});
+
+		test("returns all created tags", async () => {
+			const adapter = await setupAdapter();
+
+			await adapter.createTag({ label: "a" });
+			await adapter.createTag({ label: "b" });
+			await adapter.createTag({ label: "c" });
+
+			const tags = await adapter.listTags();
+
+			expect(tags).toHaveLength(3);
+			expect(tags.map((t) => t.label).sort()).toEqual(["a", "b", "c"]);
+		});
+	});
+
+	suite("updateTag", () => {
+		test("updates tag attributes", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "old" });
+
+			const updated = await adapter.updateTag(tag.id, { label: "new" });
+
+			expect(updated).toEqual({
+				label: "new",
+				id: tag.id,
+			});
+		});
+
+		test("persists the update", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "before" });
+
+			await adapter.updateTag(tag.id, { label: "after" });
+
+			const fetched = await adapter.getTag(tag.id);
+			expect(fetched!.label).toBe("after");
+		});
+
+		test("throws TagNotFoundError for non-existent id", async () => {
+			const adapter = await setupAdapter();
+			const fakeId = UUID_ID_PROVIDER.generate();
+			await expect(adapter.updateTag(fakeId, { label: "x" })).rejects.toThrow(TagNotFoundError);
+		});
+	});
+
+	suite("deleteTag", () => {
+		test("deletes the tag and returns true", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "bye" });
+
+			const result = await adapter.deleteTag(tag.id);
+
+			expect(result).toBe(true);
+			const deleted = await adapter.getTag(tag.id);
+			expect(deleted).toBeNull();
+		});
+
+		test("returns false for non-existent id", async () => {
+			const adapter = await setupAdapter();
+
+			const fakeId = UUID_ID_PROVIDER.generate();
+			const result = await adapter.deleteTag(fakeId);
+
+			expect(result).toBe(false);
+		});
+
+		test("cleans up relations when deleting a tag", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "to-delete" });
+			const key = objectKey("file-1");
+			await adapter.addRelations(tag.id, [key]);
+
+			await adapter.deleteTag(tag.id);
+
+			const foundTags = await adapter.listObjectTags(key);
+			expect(foundTags).toEqual([]);
+		});
+	});
+
+	suite("addRelations", () => {
+		test("links a tag to multiple objects", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "photo" });
+			const keys = [objectKey("img-1"), objectKey("img-2"), objectKey("img-3")];
+
+			await adapter.addRelations(tag.id, keys);
+
+			const objects = await adapter.listTagObjects(tag.id);
+			expect(objects.sort()).toEqual(keys.sort());
+		});
+
+		test("ignores duplicate relations", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "dup" });
+			const key = objectKey("doc-1");
+
+			await adapter.addRelations(tag.id, [key]);
+			await adapter.addRelations(tag.id, [key]);
+
+			const foundObjects = await adapter.listTagObjects(tag.id);
+			expect(foundObjects).toHaveLength(1);
+		});
+
+		test("does nothing for empty objectKeys array", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "empty" });
+			await expect(adapter.addRelations(tag.id, [])).resolves.toBeUndefined();
+		});
+	});
+
+	suite("removeRelations", () => {
+		test("removes specified relations", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "multi" });
+			const keys = [objectKey("a"), objectKey("b"), objectKey("c")];
+			await adapter.addRelations(tag.id, keys);
+
+			await adapter.removeRelations(tag.id, [objectKey("a"), objectKey("c")]);
+
+			const foundObjects = await adapter.listTagObjects(tag.id);
+			expect(foundObjects).toEqual([objectKey("b")]);
+		});
+
+		test("does nothing for empty objectKeys array", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "noop" });
+			await adapter.addRelations(tag.id, [objectKey("x")]);
+
+			const result = await adapter.removeRelations(tag.id, []);
+
+			expect(result).toBeUndefined();
+			expect(await adapter.listTagObjects(tag.id)).toHaveLength(1);
+		});
+	});
+
+	suite("listObjectTags", () => {
+		test("returns tag ids for a tagged object", async () => {
+			const adapter = await setupAdapter();
+
+			const tag1 = await adapter.createTag({ label: "t1" });
+			const tag2 = await adapter.createTag({ label: "t2" });
+
+			const key = objectKey("shared-file");
+
+			await adapter.addRelations(tag1.id, [key]);
+			await adapter.addRelations(tag2.id, [key]);
+
+			const result = await adapter.listObjectTags(key);
+
+			expect(result).toHaveLength(2);
+			expect(result).toContain(tag1.id);
+			expect(result).toContain(tag2.id);
+		});
+
+		test("returns empty array for untagged object", async () => {
+			const adapter = await setupAdapter();
+			const key = objectKey("untagged");
+
+			const result = await adapter.listObjectTags(key);
+
+			expect(result).toEqual([]);
+		});
+	});
+
+	suite("listTagObjects", () => {
+		test("returns object keys for a tag", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "docs" });
+			const keys = [objectKey("doc-a"), objectKey("doc-b")];
+			await adapter.addRelations(tag.id, keys);
+
+			const result = await adapter.listTagObjects(tag.id);
+
+			expect(result.sort()).toEqual(keys.sort());
+		});
+
+		test("returns empty array for tag with no objects", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "empty-tag" });
+
+			const result = await adapter.listTagObjects(tag.id);
+
+			expect(result).toEqual([]);
+		});
+	});
+
+	suite("getAuxStore", () => {
+		test("returns the same store instance for the same symbol", async () => {
+			const adapter = await setupAdapter();
+			const sym = Symbol("ext");
+			expect(adapter.getAuxStore(sym)).toBe(adapter.getAuxStore(sym));
+		});
+
+		test("find returns null for missing key", async () => {
+			const adapter = await setupAdapter();
+
+			const store = adapter.getAuxStore<{ count: number }>(Symbol("ext-find"));
+			const tag = await adapter.createTag({ label: "x" });
+
+			const result = await store.find(tag.id);
+			expect(result).toBeNull();
+		});
+
+		test("put stores and find retrieves data", async () => {
+			const adapter = await setupAdapter();
+
+			const store = adapter.getAuxStore<{ count: number }>(Symbol("ext-put"));
+
+			const tag = await adapter.createTag({ label: "x" });
+			await store.put(tag.id, { count: 42 });
+
+			const found = await store.find(tag.id);
+			expect(found).toEqual({ count: 42 });
+		});
+
+		test("put overwrites existing data", async () => {
+			const adapter = await setupAdapter();
+
+			const store = adapter.getAuxStore<{ count: number }>(Symbol("ext-overwrite"));
+
+			const tag = await adapter.createTag({ label: "x" });
+
+			await store.put(tag.id, { count: 1 });
+			await store.put(tag.id, { count: 99 });
+
+			const found = await store.find(tag.id);
+			expect(found).toEqual({ count: 99 });
+		});
+
+		test("patch merges with existing data", async () => {
+			const adapter = await setupAdapter();
+
+			const store = adapter.getAuxStore<{ a: number; b: string }>(Symbol("ext-patch"));
+
+			const tag = await adapter.createTag({ label: "x" });
+			await store.put(tag.id, { a: 1, b: "hello" });
+
+			const result = await store.patch(tag.id, { a: 2 });
+
+			expect(result).toEqual({ a: 2, b: "hello" });
+			const found = await store.find(tag.id);
+			expect(found).toEqual({ a: 2, b: "hello" });
+		});
+
+		test("patch returns null for missing key", async () => {
+			const adapter = await setupAdapter();
+			const store = adapter.getAuxStore<{ x: number }>(Symbol("ext-patch-null"));
+			const tag = await adapter.createTag({ label: "x" });
+
+			const result = await store.patch(tag.id, { x: 5 });
+
+			expect(result).toBeNull();
+		});
+
+		test("delete removes data and returns true", async () => {
+			const adapter = await setupAdapter();
+			const store = adapter.getAuxStore<{ v: number }>(Symbol("ext-delete"));
+			const tag = await adapter.createTag({ label: "x" });
+			await store.put(tag.id, { v: 7 });
+
+			const result = await store.delete(tag.id);
+
+			expect(result).toBe(true);
+			const found = await store.find(tag.id);
+			expect(found).toBeNull();
+		});
+
+		test("delete returns false for missing key", async () => {
+			const adapter = await setupAdapter();
+			const store = adapter.getAuxStore<{ v: number }>(Symbol("ext-delete-false"));
+			const tag = await adapter.createTag({ label: "x" });
+
+			const result = await store.delete(tag.id);
+
+			expect(result).toBe(false);
+		});
+
+		test("list returns all entries for the extension", async () => {
+			const adapter = await setupAdapter();
+			const store = adapter.getAuxStore<{ rank: number }>(Symbol("ext-list"));
+
+			const tag1 = await adapter.createTag({ label: "t1" });
+			const tag2 = await adapter.createTag({ label: "t2" });
+
+			await store.put(tag1.id, { rank: 1 });
+			await store.put(tag2.id, { rank: 2 });
+
+			const result = await store.list();
+
+			expect(result).toHaveLength(2);
+			expect(result.map(([, d]) => d.rank).sort((a, b) => a - b)).toEqual([1, 2]);
+		});
+
+		test("isolates data between different extension symbols", async () => {
+			const adapter = await setupAdapter();
+			const storeA = adapter.getAuxStore<{ val: string }>(Symbol("ext-iso-a"));
+			const storeB = adapter.getAuxStore<{ val: string }>(Symbol("ext-iso-b"));
+			const tag = await adapter.createTag({ label: "shared" });
+			await storeA.put(tag.id, { val: "from-a" });
+
+			const foundB = await storeB.find(tag.id);
+
+			expect(foundB).toBeNull();
+			expect(await storeA.find(tag.id)).toEqual({ val: "from-a" });
+		});
+	});
+
+	suite("integration", () => {
+		let adapter: DrizzleStorageAdapter<TagWithLabel>;
+
+		beforeEach(async () => {
+			adapter = await setupAdapter();
+		});
+
+		test("bidirectional relation lookup", async () => {
+			const tag1 = await adapter.createTag({ label: "work" });
+			const tag2 = await adapter.createTag({ label: "urgent" });
+			const fileKey = objectKey("report.pdf");
+			const docKey = objectKey("memo.txt");
+
+			await adapter.addRelations(tag1.id, [fileKey, docKey]);
+			await adapter.addRelations(tag2.id, [fileKey]);
+
+			expect((await adapter.listTagObjects(tag1.id)).sort()).toEqual([fileKey, docKey].sort());
+			expect(await adapter.listTagObjects(tag2.id)).toEqual([fileKey]);
+			expect((await adapter.listObjectTags(fileKey)).sort()).toEqual([tag1.id, tag2.id].sort());
+			expect(await adapter.listObjectTags(docKey)).toEqual([tag1.id]);
+		});
+
+		test("removeRelations only removes specified links", async () => {
+			const tag = await adapter.createTag({ label: "cleanup" });
+			const keys = [objectKey("f1"), objectKey("f2"), objectKey("f3")];
+			await adapter.addRelations(tag.id, keys);
+			await adapter.removeRelations(tag.id, [objectKey("f2")]);
+
+			const result = await adapter.listTagObjects(tag.id);
+
+			expect(result.sort()).toEqual([objectKey("f1"), objectKey("f3")].sort());
+		});
+	});
+});

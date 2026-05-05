@@ -15,6 +15,10 @@ export default defineConfig({
 				rootDir,
 				"packages/storage-adapter-in-memory-map/src/index.ts",
 			),
+			"@tagikon/storage-adapter-drizzle": resolve(
+				rootDir,
+				"packages/storage-adapter-drizzle/src/index.ts",
+			),
 			"@tagikon/extension-default-attributes": resolve(
 				rootDir,
 				"packages/extension-default-attributes/src/index.ts",

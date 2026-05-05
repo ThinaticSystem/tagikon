@@ -482,14 +482,13 @@ pnpm check         # CI相当の全チェック
 | `pnpm-workspace.yaml` / 各 `packages/*/package.json`    | pnpm モノレポ設定。`workspace:*` 依存で相互参照。各パッケージに `tsdown.config.ts` + `tsconfig.json`（`@tagikon/tsconfig/base.json` を extends・パッケージ固有の `paths` のみオーバーライド）                                                                                                                                                                                 |
 | `packages/tsconfig/base.json`                           | 全パッケージ共有の tsconfig ベース（`@tagikon/tsconfig` ワークスペースパッケージ）。パッケージ名経由で `extends` することで pnpm symlink 越しの解決バグを回避                                                                                                                                                                                                                 |
 | `typedoc.json`                                          | TypeDoc 設定（`pnpm docs:generate` で `docs/` に HTML を生成。`packages/core/src/index.ts` をエントリーポイントとして使用）                                                                                                                                                                                                                                                   |
+| `packages/storage-adapter-drizzle/src/schema.ts`        | `createSQLiteSchema(prefix?)` / `createPgSchema(prefix?)` — Drizzle テーブル定義ファクトリ（SQLite: `tags` / `relations` / `aux` 3テーブル・オブジェクトキー逆引きインデックス付き。PG も同構造）                                                                                                                                                                             |
+| `packages/storage-adapter-drizzle/src/adapter.ts`       | `DrizzleStorageAdapter<TTag>` — `StorageAdapter<TTag>` 実装（SQLite / PostgreSQL 対応。`drizzle-orm` をピア依存とし方言非依存の構造型 `DrizzleClient` で受け付け。`symbol.description` を AuxStore の行キーとして使用。タグ属性は JSON 列に保存・復元）                                                                                                                       |
+| `packages/storage-adapter-drizzle/src/adapter.spec.ts`  | `DrizzleStorageAdapter` 統合テスト（`@libsql/client` インメモリ SQLite で全 `StorageAdapter` メソッド + `AuxStore` 5操作を検証。32 テスト）                                                                                                                                                                                                                                   |
 
 ### 未実装（次に着手）
 
-**着手順序:**
-
-1. **Drizzle 用 Storage Adapter** — Relational Database 向け Storage Adapter の公式実装
-
-   `@tagikon/storage-adapter-drizzle` パッケージで提供
+1. **FinderをStorageAdapterに統合** — `findObjectsByTags` をコアAPIから削除し、Finder機能を `StorageAdapter` のオプション機能として提供する。これにより、タグ検索の実装をストレージ層に委ねることができ、階層プラグインなどでの最適化も可能になる（例: 階層構造を活かした再帰クエリなど）。Finderは `Extension` ではなく `StorageAdapter` の機能とすることで、タグの保存形式に密接に結びついた検索ロジックを実装できるようになる。
 
 ### 未確定事項（設計中）
 
