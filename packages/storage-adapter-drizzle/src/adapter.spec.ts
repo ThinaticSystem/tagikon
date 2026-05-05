@@ -2,7 +2,23 @@ import type { Tag } from "@tagikon/core";
 import type { Uuid } from "@tagikon/id-provider-uuid";
 
 import { createClient } from "@libsql/client";
-import { TagNotFoundError, objectKey, taggedWithAll, taggedWithAny, tagsById } from "@tagikon/core";
+import {
+	TagNotFoundError,
+	and,
+	complementTags,
+	intersectTags,
+	not,
+	objectKey,
+	or,
+	propertyEqual,
+	propertyGreaterThan,
+	propertyStartsWith,
+	taggedWithAll,
+	taggedWithAny,
+	tagsById,
+	tagsWhere,
+	unionTags,
+} from "@tagikon/core";
 import { UUID_ID_PROVIDER } from "@tagikon/id-provider-uuid";
 import { drizzle } from "drizzle-orm/libsql";
 import { beforeEach, expect, suite, test } from "vitest";
@@ -441,6 +457,210 @@ suite("DrizzleStorageAdapter", () => {
 			const result = await adapter.countObjects(taggedWithAny(tagsById([tag.id])));
 
 			expect(result).toBe(2);
+		});
+
+		test("findObjects with tagsWhere string equal predicate", async () => {
+			const adapter = await setupAdapter();
+
+			const work = await adapter.createTag({ label: "work" });
+			const home = await adapter.createTag({ label: "home" });
+
+			await adapter.addRelations(work.id, [objectKey("a"), objectKey("b")]);
+			await adapter.addRelations(home.id, [objectKey("c")]);
+
+			const result = await adapter.findObjects(
+				taggedWithAny(tagsWhere(propertyEqual("label", "work"))),
+			);
+
+			expect(result).toEqual([objectKey("a"), objectKey("b")]);
+		});
+
+		test("findObjects with tagsWhere starts-with predicate", async () => {
+			const adapter = await setupAdapter();
+
+			const work = await adapter.createTag({ label: "work" });
+			const workUrgent = await adapter.createTag({ label: "work-urgent" });
+			const home = await adapter.createTag({ label: "home" });
+
+			await adapter.addRelations(work.id, [objectKey("a")]);
+			await adapter.addRelations(workUrgent.id, [objectKey("b")]);
+			await adapter.addRelations(home.id, [objectKey("c")]);
+
+			const result = await adapter.findObjects(
+				taggedWithAny(tagsWhere(propertyStartsWith("label", "work"))),
+			);
+
+			expect(result).toEqual([objectKey("a"), objectKey("b")]);
+		});
+
+		test("findObjects with tagsWhere numeric greater-than predicate", async () => {
+			// Use a separate adapter with a numeric field so json_extract returns a JSON number
+			const client = createClient({ url: ":memory:" });
+			await client.execute("CREATE TABLE tagikon_tags (id TEXT PRIMARY KEY, data TEXT NOT NULL)");
+			await client.execute(
+				"CREATE TABLE tagikon_relations (tag_id TEXT NOT NULL, object_key TEXT NOT NULL, PRIMARY KEY (tag_id, object_key))",
+			);
+			await client.execute(
+				"CREATE TABLE tagikon_aux (extension_key TEXT NOT NULL, tag_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY (extension_key, tag_id))",
+			);
+			type TagWithScore = Tag<Uuid> & { score: number };
+			const numAdapter = new DrizzleStorageAdapter<TagWithScore>(
+				drizzle(client),
+				createTagikonSqliteSchema(),
+				UUID_ID_PROVIDER,
+			);
+
+			const t1 = await numAdapter.createTag({ score: 1 });
+			const t5 = await numAdapter.createTag({ score: 5 });
+			const t10 = await numAdapter.createTag({ score: 10 });
+
+			await numAdapter.addRelations(t1.id, [objectKey("obj-1")]);
+			await numAdapter.addRelations(t5.id, [objectKey("obj-5")]);
+			await numAdapter.addRelations(t10.id, [objectKey("obj-10")]);
+
+			const result = await numAdapter.findObjects(
+				taggedWithAny(tagsWhere(propertyGreaterThan("score", 4))),
+			);
+
+			expect(result.sort()).toEqual([objectKey("obj-5"), objectKey("obj-10")].sort());
+		});
+
+		test("findObjects with and query", async () => {
+			const adapter = await setupAdapter();
+
+			const t1 = await adapter.createTag({ label: "t1" });
+			const t2 = await adapter.createTag({ label: "t2" });
+
+			await adapter.addRelations(t1.id, [objectKey("a"), objectKey("b")]);
+			await adapter.addRelations(t2.id, [objectKey("b"), objectKey("c")]);
+
+			const result = await adapter.findObjects(
+				and([taggedWithAny(tagsById([t1.id])), taggedWithAny(tagsById([t2.id]))]),
+			);
+
+			expect(result).toEqual([objectKey("b")]);
+		});
+
+		test("findObjects with or query", async () => {
+			const adapter = await setupAdapter();
+
+			const t1 = await adapter.createTag({ label: "t1" });
+			const t2 = await adapter.createTag({ label: "t2" });
+
+			await adapter.addRelations(t1.id, [objectKey("a")]);
+			await adapter.addRelations(t2.id, [objectKey("c")]);
+
+			const result = await adapter.findObjects(
+				or([taggedWithAny(tagsById([t1.id])), taggedWithAny(tagsById([t2.id]))]),
+			);
+
+			expect(result).toEqual([objectKey("a"), objectKey("c")]);
+		});
+
+		test("findObjects with not query excludes matched objects", async () => {
+			const adapter = await setupAdapter();
+
+			const t1 = await adapter.createTag({ label: "t1" });
+			const t2 = await adapter.createTag({ label: "t2" });
+
+			await adapter.addRelations(t1.id, [objectKey("a"), objectKey("b")]);
+			await adapter.addRelations(t2.id, [objectKey("b"), objectKey("c")]);
+
+			const result = await adapter.findObjects(not(taggedWithAny(tagsById([t2.id]))));
+
+			expect(result).toEqual([objectKey("a")]);
+		});
+
+		test("findObjects with intersectTags selector", async () => {
+			const adapter = await setupAdapter();
+
+			const t1 = await adapter.createTag({ label: "work" });
+			const t2 = await adapter.createTag({ label: "urgent" });
+			const t3 = await adapter.createTag({ label: "home" });
+
+			await adapter.addRelations(t1.id, [objectKey("a")]);
+			await adapter.addRelations(t2.id, [objectKey("a")]);
+			await adapter.addRelations(t3.id, [objectKey("b")]);
+
+			// intersectTags([tagsById([t1, t2])]) = tags that are both t1 and t2
+			const result = await adapter.findObjects(
+				taggedWithAny(intersectTags([tagsById([t1.id, t2.id]), tagsById([t1.id, t3.id])])),
+			);
+
+			expect(result).toEqual([objectKey("a")]);
+		});
+
+		test("findObjects with unionTags selector", async () => {
+			const adapter = await setupAdapter();
+
+			const t1 = await adapter.createTag({ label: "t1" });
+			const t2 = await adapter.createTag({ label: "t2" });
+
+			await adapter.addRelations(t1.id, [objectKey("a")]);
+			await adapter.addRelations(t2.id, [objectKey("b")]);
+
+			const result = await adapter.findObjects(
+				taggedWithAny(unionTags([tagsById([t1.id]), tagsById([t2.id])])),
+			);
+
+			expect(result).toEqual([objectKey("a"), objectKey("b")]);
+		});
+
+		test("findObjects with complementTags selector", async () => {
+			const adapter = await setupAdapter();
+
+			const t1 = await adapter.createTag({ label: "t1" });
+			const t2 = await adapter.createTag({ label: "t2" });
+
+			await adapter.addRelations(t1.id, [objectKey("a")]);
+			await adapter.addRelations(t2.id, [objectKey("b")]);
+
+			// complementTags(tagsById([t1])) = all tags except t1 = {t2}
+			const result = await adapter.findObjects(taggedWithAny(complementTags(tagsById([t1.id]))));
+
+			expect(result).toEqual([objectKey("b")]);
+		});
+
+		test("findObjects applies limit and offset", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "page" });
+			await adapter.addRelations(tag.id, [
+				objectKey("a"),
+				objectKey("b"),
+				objectKey("c"),
+				objectKey("d"),
+				objectKey("e"),
+			]);
+
+			const page1 = await adapter.findObjects(taggedWithAny(tagsById([tag.id])), {
+				limit: 2,
+				offset: 0,
+			});
+			const page2 = await adapter.findObjects(taggedWithAny(tagsById([tag.id])), {
+				limit: 2,
+				offset: 2,
+			});
+
+			expect(page1).toEqual([objectKey("a"), objectKey("b")]);
+			expect(page2).toEqual([objectKey("c"), objectKey("d")]);
+		});
+
+		test("findObjects with empty tagsById returns empty result", async () => {
+			const adapter = await setupAdapter();
+			const tag = await adapter.createTag({ label: "x" });
+			await adapter.addRelations(tag.id, [objectKey("a")]);
+
+			const result = await adapter.findObjects(taggedWithAny(tagsById([])));
+
+			expect(result).toEqual([]);
+		});
+
+		test("countObjects returns 0 for empty result", async () => {
+			const adapter = await setupAdapter();
+
+			const result = await adapter.countObjects(taggedWithAny(tagsById([])));
+
+			expect(result).toBe(0);
 		});
 	});
 });

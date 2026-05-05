@@ -9,17 +9,15 @@ import type {
 	StorageAdapter,
 	Tag,
 } from "@tagikon/core";
+import type { SQL } from "drizzle-orm";
 
-import {
-	countObjectQueryInMemory,
-	evaluateObjectQueryInMemory,
-	TagNotFoundError,
-} from "@tagikon/core";
+import { TagNotFoundError } from "@tagikon/core";
 import { and, eq, inArray } from "drizzle-orm";
+
+import { compileCountObjects, compileFindObjects } from "./query-compiler.ts";
 
 // Minimal structural type satisfied by all Drizzle database instances (SQLite, PostgreSQL, etc.)
 // The query builder methods have the same shape across dialects, so `any` returns are intentional.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DrizzleClient = { select: any; insert: any; update: any; delete: any };
 
 type TagRow = { readonly id: string; readonly data: string };
@@ -163,13 +161,38 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 		query: ObjectQuery<IdOf<TTag>>,
 		options?: FindObjectsOptions,
 	): Promise<ObjectKey[]> {
-		// TODO: v1 delegates to the in-memory evaluator. The new interface enables
-		// SQL compilation as a follow-up optimization (see CLAUDE.md "未確定事項").
-		return evaluateObjectQueryInMemory<TTag>(query, this, options);
+		const compiledSql = compileFindObjects(
+			query,
+			this.#schema,
+			this.#schema.dialect,
+			(id) => this.#idPlugin.serialize(id),
+			options,
+		);
+		const rows = await this.#executeRaw<{ object_key: string }>(compiledSql);
+		return rows.map((row) => row.object_key as ObjectKey);
 	}
 
 	async countObjects(query: ObjectQuery<IdOf<TTag>>): Promise<number> {
-		return countObjectQueryInMemory<TTag>(query, this);
+		const compiledSql = compileCountObjects(query, this.#schema, this.#schema.dialect, (id) =>
+			this.#idPlugin.serialize(id),
+		);
+		const rows = await this.#executeRaw<{ n: number | bigint }>(compiledSql);
+		const row = rows[0];
+		return row !== undefined ? Number(row.n) : 0;
+	}
+
+	// SQLite drizzle exposes `all()` for SELECT; PostgreSQL drizzle exposes `execute()`.
+	// Cast to any to avoid binding the structural DrizzleClient type to a specific dialect.
+	async #executeRaw<TRow extends object>(query: SQL): Promise<TRow[]> {
+		const db = this.#db as any;
+		switch (this.#schema.dialect) {
+			case "sqlite":
+				return db.all(query) as Promise<TRow[]>;
+			case "postgres": {
+				const result = await (db.execute(query) as Promise<{ rows: TRow[] }>);
+				return result.rows;
+			}
+		}
 	}
 
 	getAuxStore<TData = unknown>(extensionId: symbol): AuxStore<IdOf<TTag>, TData> {

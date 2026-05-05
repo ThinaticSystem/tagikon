@@ -42,7 +42,7 @@ export const createTagikonSqliteSchema = ({
 		(table) => [primaryKey({ columns: [table.extensionKey, table.tagId] })],
 	);
 
-	return { tags, relations, aux };
+	return { tags, relations, aux, dialect: "sqlite" as const };
 };
 export type TagikonSqliteSchema = ReturnType<typeof createTagikonSqliteSchema>;
 //#endregion
@@ -82,7 +82,7 @@ export const createTagikonPostgresqlSchema = ({
 		(table) => [pgPrimaryKey({ columns: [table.extensionKey, table.tagId] })],
 	);
 
-	return { tags, relations, aux };
+	return { tags, relations, aux, dialect: "postgres" as const };
 };
 export type TagikonPostgresqlSchema = ReturnType<typeof createTagikonPostgresqlSchema>;
 //#endregion
