@@ -5,7 +5,7 @@ import { makeCodec } from "@tagikon/core";
 import { decodeUnknownSync, encodeSync } from "effect/Schema";
 
 /**
- * Creates a {@link import("@tagikon/core").TagPropertyCodec} from an Effect Schema.
+ * Creates a `TagPropertyCodec` from an Effect Schema.
  *
  * The schema's `encodeSync` is used as `serialize` and `decodeUnknownSync` as `deserialize`.\
  * Decode errors throw Effect's `ParseError` — the same error you would get calling\

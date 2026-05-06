@@ -542,19 +542,13 @@ pnpm check         # CI相当の全チェック
 | `packages/core/src/plugin/storage-adapter/codec.spec.ts`    | `tpc.xxx().optional()` の動作テスト（serialize / deserialize / `_optional: true` / 冪等性）および `TagFromShape` 型推論テスト（必須 / オプショナルプロパティの分類）。                                                                                                                                                                                                                                                                                                                                             |
 | `packages/codec-effect-schema/src/index.ts`                 | `fromEffectSchema<TValue, TStored>(schema: Schema<TValue, TStored, never>)` — Effect Schema（`effect/Schema`）から `TagPropertyCodec` を生成するブリッジ関数。`encodeSync` を serialize・`decodeUnknownSync` を deserialize として使用。`makeCodec` 経由で `.optional()` チェーンを継承。`effect` >= 3.0.0 を peer dep として要求。                                                                                                                                                                                |
 | `packages/codec-effect-schema/src/index.spec.ts`            | `fromEffectSchema` ユニットテスト（`Schema.String` identity / `Schema.NumberFromString` encode-decode / `minLength` バリデーション / `.optional()` チェーン / 型推論）                                                                                                                                                                                                                                                                                                                                             |
+| `tsconfig.json`（ルート）                                   | `references` に `packages/codec-effect-schema` を追加（漏れていたため `pnpm typecheck` の対象外だった）                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `typedoc.json`                                              | `entryPoints` に `packages/storage-adapter-drizzle/src/index.ts` と `packages/codec-effect-schema/src/index.ts` を追加                                                                                                                                                                                                                                                                                                                                                                                             |
+| `.claude/commands/package-audit.md`                         | パッケージ設定の一貫性を監査するSKILL（`/package-audit`）。tsconfig/tsdown/package.json/root tsconfig ref/vite alias/typedoc の6項目を全パッケージに対して確認する手順を記載                                                                                                                                                                                                                                                                                                                                       |
 
 ### 未実装（次に着手）
 
 優先度は下記の順。
-
-1. **パッケージのメンテナンス** — 各種パッケージが適切な設定となっているかを確認し、不備があれば修正
-
-   以下を漏れなく調査  
-    全てのパッケージについて調査項目を満たしているかの表を作成し、完了したものからチェックを入れていく。  
-    例外がある場合はその理由を記載する。
-   - パッケージ間でビルド (`tsconfig.json`, `tsdown.config.ts`) やテスト（`vitest.config.ts`）、パッケージ設定（`package.json`）の揺れがないか
-
-   また、今後の調査用にこの調査を実施するSKILLを作成
 
 1. **ドキュメントの整理**
    - TypeDocでのドキュメントを人間が読んで理解しやすい構成や内容にすること

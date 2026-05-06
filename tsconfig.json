@@ -4,6 +4,7 @@
 		{ "path": "./packages/core" },
 		{ "path": "./packages/id-provider-string" },
 		{ "path": "./packages/id-provider-uuid" },
+		{ "path": "./packages/codec-effect-schema" },
 		{ "path": "./packages/storage-adapter-in-memory-map" },
 		{ "path": "./packages/storage-adapter-drizzle" },
 		{ "path": "./packages/extension-default-attributes" },

@@ -4,7 +4,9 @@
 		"packages/core/src/index.ts",
 		"packages/id-provider-string/src/index.ts",
 		"packages/id-provider-uuid/src/index.ts",
+		"packages/codec-effect-schema/src/index.ts",
 		"packages/storage-adapter-in-memory-map/src/index.ts",
+		"packages/storage-adapter-drizzle/src/index.ts",
 		"packages/extension-default-attributes/src/index.ts",
 		"packages/extension-soft-delete/src/index.ts",
 		"packages/extension-hierarchy/src/index.ts"
