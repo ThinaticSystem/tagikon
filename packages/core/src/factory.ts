@@ -8,6 +8,7 @@ import type {
 	Extension,
 	ExtensionRegistration,
 } from "./plugin/extension/types.ts";
+import type { TagFromShape, TagShape } from "./plugin/storage-adapter/codec.ts";
 import type { StorageAdapter } from "./plugin/storage-adapter/types.ts";
 import type { FindObjectsOptions, ObjectQuery } from "./query/types.ts";
 import type { Permission } from "./security/permission.ts";
@@ -28,11 +29,23 @@ export interface CoreApi<TTag extends Tag> {
 	countObjects(query: ObjectQuery<IdOf<TTag>>): Promise<number>;
 }
 
+// Internal constraint for tagShape.id — avoids importing IdProvider.
+// 'any' in serialize is required: concrete IdProvider<X> is contravariant in X,
+// so (id: Uuid)=>string is NOT assignable to (id: unknown)=>string.
+// biome-ignore lint/suspicious/noExplicitAny: necessary to accept any concrete IdProvider<X>
+type AnyIdProvider = {
+	readonly generate: () => unknown;
+	readonly serialize: (id: any) => string;
+	readonly deserialize: (raw: string) => unknown;
+};
+type AnyTagShape = { readonly id: AnyIdProvider } & Record<string, unknown>;
+
 export interface SetupTagikonOptions<
-	TTag extends Tag,
+	TShape extends AnyTagShape,
 	TRegistrations extends readonly ExtensionRegistration<symbol, ApiShape>[] = readonly [],
 > {
-	storageAdapter: StorageAdapter<TTag>;
+	tagShape: TShape;
+	storageAdapter: StorageAdapter<TagFromShape<TShape>>;
 	/**
 	 * Extensions registered at the root. Each entry is exposed on the returned
 	 * Tagikon object under its namespace symbol; their descendants stay private.
@@ -127,29 +140,38 @@ interface ExtensionBinding {
 }
 
 export const setupTagikon = <
-	TTag extends Tag,
+	TShape extends AnyTagShape,
 	TRegistrations extends readonly ExtensionRegistration<symbol, ApiShape>[] = readonly [],
 >(
-	options: SetupTagikonOptions<TTag, TRegistrations>,
-): CoreApi<TTag> & ChildrenApiOf<TRegistrations> => {
-	const { storageAdapter, extensions: rootRegistrations = [] as unknown as TRegistrations } =
-		options;
+	options: SetupTagikonOptions<TShape, TRegistrations>,
+): CoreApi<TagFromShape<TShape>> & ChildrenApiOf<TRegistrations> => {
+	const {
+		tagShape,
+		storageAdapter,
+		extensions: rootRegistrations = [] as unknown as TRegistrations,
+	} = options;
+
+	storageAdapter.setIdProvider(tagShape.id as Parameters<typeof storageAdapter.setIdProvider>[0]);
+	storageAdapter.setTagCodec?.(tagShape as unknown as TagShape<TagFromShape<TShape>>);
+
 	const storageView = wrapStorageForExtensions(storageAdapter);
 
 	let anonymousSequence = 0;
-	const allocateSymbolFor = (ext: AnyExtension<TTag>): symbol =>
+	const allocateSymbolFor = (ext: AnyExtension<TagFromShape<TShape>>): symbol =>
 		ext.namespace ?? Symbol(`$anonymous-extension-${anonymousSequence++}`);
 
 	const allHookEntries = emptyHookEntries();
 
 	const buildBinding = (
-		ext: AnyExtension<TTag>,
+		ext: AnyExtension<TagFromShape<TShape>>,
 		permissions: ReadonlySet<Permission>,
 	): ExtensionBinding => {
 		const childrenBoundApiMap: Record<symbol, BoundApi> = {};
 
 		for (const childRegistration of ext.extensions ?? []) {
-			const childExtension = childRegistration.extension as unknown as AnyExtension<TTag>;
+			const childExtension = childRegistration.extension as unknown as AnyExtension<
+				TagFromShape<TShape>
+			>;
 			const childBinding = buildBinding(childExtension, childRegistration.permissions);
 			if (childRegistration.namespace) {
 				childrenBoundApiMap[childRegistration.namespace] = childBinding.boundApi;
@@ -157,9 +179,12 @@ export const setupTagikon = <
 		}
 
 		const extensionSymbol = allocateSymbolFor(ext);
-		const aux = storageAdapter.getAuxStore<unknown>(extensionSymbol);
+		const aux = storageAdapter.getAuxStore(
+			extensionSymbol,
+			ext.auxCodec as Parameters<typeof storageAdapter.getAuxStore>[1],
+		);
 		const guardedView = createPermissionGuardedView(storageView, permissions);
-		const ctx = createExtensionContext<TTag, unknown, Record<symbol, BoundApi>>(
+		const ctx = createExtensionContext<TagFromShape<TShape>, unknown, Record<symbol, BoundApi>>(
 			guardedView,
 			aux,
 			childrenBoundApiMap,
@@ -192,7 +217,9 @@ export const setupTagikon = <
 
 	const namespacedApis: Record<symbol, BoundApi> = {};
 	for (const childRegistration of rootRegistrations) {
-		const childExtension = childRegistration.extension as unknown as AnyExtension<TTag>;
+		const childExtension = childRegistration.extension as unknown as AnyExtension<
+			TagFromShape<TShape>
+		>;
 		const childBinding = buildBinding(childExtension, childRegistration.permissions);
 		if (childRegistration.namespace) {
 			namespacedApis[childRegistration.namespace] = childBinding.boundApi;
@@ -208,6 +235,8 @@ export const setupTagikon = <
 	const resetWithTagsHooks = collectHooks(allHookEntries.resetWithTags);
 	const findObjectsHooks = collectHooks(allHookEntries.findObjects);
 	const countObjectsHooks = collectHooks(allHookEntries.countObjects);
+
+	type TTag = TagFromShape<TShape>;
 
 	const coreApi: CoreApi<TTag> = {
 		async addTag(attributes) {

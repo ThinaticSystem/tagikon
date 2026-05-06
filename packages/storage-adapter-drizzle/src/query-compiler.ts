@@ -1,6 +1,7 @@
 import type { TagikonSchema } from "./schema.ts";
 import type {
 	FindObjectsOptions,
+	JsonPrimitive,
 	ObjectQuery,
 	TagPredicate,
 	TagPropertyPredicate,
@@ -11,6 +12,7 @@ import type { SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
 type Dialect = "sqlite" | "postgres";
+type SerializePropertyValue = (property: string, value: unknown) => JsonPrimitive;
 
 /** Returns SQL that always produces zero rows for the tag ID set */
 const emptyTagSet = (schema: TagikonSchema): SQL =>
@@ -24,8 +26,10 @@ const compilePropertyPredicate = (
 	predicate: TagPropertyPredicate,
 	schema: TagikonSchema,
 	dialect: Dialect,
+	serializePropertyValue: SerializePropertyValue,
 ): SQL => {
-	const { property, match, value } = predicate;
+	const { property, match } = predicate;
+	const value = serializePropertyValue(property, predicate.value);
 
 	switch (dialect) {
 		case "sqlite": {
@@ -86,26 +90,31 @@ const compileTagPredicate = (
 	predicate: TagPredicate,
 	schema: TagikonSchema,
 	dialect: Dialect,
+	serializePropertyValue: SerializePropertyValue,
 ): SQL => {
 	switch (predicate.type) {
 		case "and": {
 			if (predicate.predicates.length === 0) return sql`1=1`;
 			return sql`(${sql.join(
-				predicate.predicates.map((p) => compileTagPredicate(p, schema, dialect)),
+				predicate.predicates.map((p) =>
+					compileTagPredicate(p, schema, dialect, serializePropertyValue),
+				),
 				sql` AND `,
 			)})`;
 		}
 		case "or": {
 			if (predicate.predicates.length === 0) return sql`1=0`;
 			return sql`(${sql.join(
-				predicate.predicates.map((p) => compileTagPredicate(p, schema, dialect)),
+				predicate.predicates.map((p) =>
+					compileTagPredicate(p, schema, dialect, serializePropertyValue),
+				),
 				sql` OR `,
 			)})`;
 		}
 		case "not":
-			return sql`NOT (${compileTagPredicate(predicate.predicate, schema, dialect)})`;
+			return sql`NOT (${compileTagPredicate(predicate.predicate, schema, dialect, serializePropertyValue)})`;
 		case "property":
-			return compilePropertyPredicate(predicate, schema, dialect);
+			return compilePropertyPredicate(predicate, schema, dialect, serializePropertyValue);
 	}
 };
 
@@ -114,6 +123,7 @@ const compileTagSelector = <TId>(
 	schema: TagikonSchema,
 	dialect: Dialect,
 	serialize: (id: TId) => string,
+	serializePropertyValue: SerializePropertyValue,
 ): SQL => {
 	switch (selector.type) {
 		case "tags-by-id": {
@@ -122,14 +132,19 @@ const compileTagSelector = <TId>(
 			return sql`SELECT ${schema.tags.id} FROM ${schema.tags} WHERE ${schema.tags.id} IN (${sql.join(params, sql`, `)})`;
 		}
 		case "tags-where": {
-			const condition = compileTagPredicate(selector.predicate, schema, dialect);
+			const condition = compileTagPredicate(
+				selector.predicate,
+				schema,
+				dialect,
+				serializePropertyValue,
+			);
 			return sql`SELECT ${schema.tags.id} FROM ${schema.tags} WHERE ${condition}`;
 		}
 		case "tags-intersection": {
 			if (selector.selectors.length === 0) return emptyTagSet(schema);
 			// Each part is wrapped so compound selects are valid INTERSECT operands
 			const parts = selector.selectors.map((s) => {
-				const inner = compileTagSelector(s, schema, dialect, serialize);
+				const inner = compileTagSelector(s, schema, dialect, serialize, serializePropertyValue);
 				return sql`SELECT id FROM (${inner}) AS _isect`;
 			});
 			return sql.join(parts, sql` INTERSECT `);
@@ -137,13 +152,19 @@ const compileTagSelector = <TId>(
 		case "tags-union": {
 			if (selector.selectors.length === 0) return emptyTagSet(schema);
 			const parts = selector.selectors.map((s) => {
-				const inner = compileTagSelector(s, schema, dialect, serialize);
+				const inner = compileTagSelector(s, schema, dialect, serialize, serializePropertyValue);
 				return sql`SELECT id FROM (${inner}) AS _union`;
 			});
 			return sql.join(parts, sql` UNION `);
 		}
 		case "tags-complement": {
-			const inner = compileTagSelector(selector.selector, schema, dialect, serialize);
+			const inner = compileTagSelector(
+				selector.selector,
+				schema,
+				dialect,
+				serialize,
+				serializePropertyValue,
+			);
 			// Wrap inner in subquery so EXCEPT operand is always a simple SELECT
 			return sql`SELECT ${schema.tags.id} FROM ${schema.tags} EXCEPT SELECT id FROM (${inner}) AS _comp`;
 		}
@@ -155,22 +176,35 @@ const compileObjectQuery = <TId>(
 	schema: TagikonSchema,
 	dialect: Dialect,
 	serialize: (id: TId) => string,
+	serializePropertyValue: SerializePropertyValue,
 ): SQL => {
 	switch (query.type) {
 		case "tagged-with-any": {
-			const selectorSql = compileTagSelector(query.selector, schema, dialect, serialize);
+			const selectorSql = compileTagSelector(
+				query.selector,
+				schema,
+				dialect,
+				serialize,
+				serializePropertyValue,
+			);
 			return sql`SELECT DISTINCT ${schema.relations.objectKey} FROM ${schema.relations} WHERE ${schema.relations.tagId} IN (${selectorSql})`;
 		}
 		case "tagged-with-all": {
 			// The selector SQL is embedded twice; parameters are bound twice accordingly
-			const selectorSql = compileTagSelector(query.selector, schema, dialect, serialize);
+			const selectorSql = compileTagSelector(
+				query.selector,
+				schema,
+				dialect,
+				serialize,
+				serializePropertyValue,
+			);
 			return sql`SELECT ${schema.relations.objectKey} FROM ${schema.relations} WHERE ${schema.relations.tagId} IN (${selectorSql}) GROUP BY ${schema.relations.objectKey} HAVING COUNT(DISTINCT ${schema.relations.tagId}) = (SELECT COUNT(*) FROM (${selectorSql}) AS _all_cnt)`;
 		}
 		case "and": {
 			if (query.queries.length === 0) return emptyObjectSet(schema);
 			// Wrap each sub-query so compound selects are valid INTERSECT operands
 			const parts = query.queries.map((q) => {
-				const inner = compileObjectQuery(q, schema, dialect, serialize);
+				const inner = compileObjectQuery(q, schema, dialect, serialize, serializePropertyValue);
 				return sql`SELECT object_key FROM (${inner}) AS _and`;
 			});
 			return sql.join(parts, sql` INTERSECT `);
@@ -178,13 +212,19 @@ const compileObjectQuery = <TId>(
 		case "or": {
 			if (query.queries.length === 0) return emptyObjectSet(schema);
 			const parts = query.queries.map((q) => {
-				const inner = compileObjectQuery(q, schema, dialect, serialize);
+				const inner = compileObjectQuery(q, schema, dialect, serialize, serializePropertyValue);
 				return sql`SELECT object_key FROM (${inner}) AS _or`;
 			});
 			return sql.join(parts, sql` UNION `);
 		}
 		case "not": {
-			const inner = compileObjectQuery(query.query, schema, dialect, serialize);
+			const inner = compileObjectQuery(
+				query.query,
+				schema,
+				dialect,
+				serialize,
+				serializePropertyValue,
+			);
 			// Universe = all object keys present in relations; wrap inner in subquery for EXCEPT
 			return sql`SELECT DISTINCT ${schema.relations.objectKey} FROM ${schema.relations} EXCEPT SELECT object_key FROM (${inner}) AS _not`;
 		}
@@ -201,8 +241,9 @@ export const compileFindObjects = <TId>(
 	dialect: Dialect,
 	serialize: (id: TId) => string,
 	options?: FindObjectsOptions,
+	serializePropertyValue: SerializePropertyValue = (_property, value) => value as JsonPrimitive,
 ): SQL => {
-	const inner = compileObjectQuery(query, schema, dialect, serialize);
+	const inner = compileObjectQuery(query, schema, dialect, serialize, serializePropertyValue);
 	let base: SQL = sql`SELECT object_key FROM (${inner}) AS _find ORDER BY object_key`;
 
 	const { limit, offset } = options ?? {};
@@ -228,7 +269,8 @@ export const compileCountObjects = <TId>(
 	schema: TagikonSchema,
 	dialect: Dialect,
 	serialize: (id: TId) => string,
+	serializePropertyValue: SerializePropertyValue = (_property, value) => value as JsonPrimitive,
 ): SQL => {
-	const inner = compileObjectQuery(query, schema, dialect, serialize);
+	const inner = compileObjectQuery(query, schema, dialect, serialize, serializePropertyValue);
 	return sql`SELECT COUNT(*) AS n FROM (${inner}) AS _count`;
 };

@@ -1,4 +1,5 @@
 import type {
+	AuxCodec,
 	AuxStore,
 	FindObjectsOptions,
 	IdOf,
@@ -7,6 +8,7 @@ import type {
 	ObjectQuery,
 	StorageAdapter,
 	Tag,
+	TagShape,
 } from "@tagikon/core";
 
 import {
@@ -25,23 +27,37 @@ export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements Stora
 	// extension symbol → its private auxiliary data map (keyed by serialized tag id)
 	readonly #auxByExtension = new Map<symbol, Map<string, unknown>>();
 	readonly #auxStoreWrappers = new Map<symbol, AuxStore<IdOf<TTag>, unknown>>();
-	readonly #idPlugin: IdProvider<IdOf<TTag>>;
+	/**
+	 * DO NOT ACCESS DIRECTLY\
+	 * Use {@link #idProvider} getter instead, which throws if this is not set yet.
+	 */
+	#_idProvider: IdProvider<IdOf<TTag>> | null = null;
 
-	constructor(idPlugin: IdProvider<IdOf<TTag>>) {
-		this.#idPlugin = idPlugin;
+	setIdProvider(provider: IdProvider<IdOf<TTag>>): void {
+		this.#_idProvider = provider;
+	}
+
+	// In-memory storage needs no serialization; setTagCodec is intentionally a no-op.
+	setTagCodec(_codec: TagShape<TTag>): void {}
+
+	get #idProvider(): IdProvider<IdOf<TTag>> {
+		if (!this.#_idProvider)
+			// FIXME: Error class should extend TagikonError
+			throw new Error("MapStorageAdapter: setIdProvider must be called before any operation.");
+		return this.#_idProvider;
 	}
 
 	async createTag(data: Omit<TTag, "id">): Promise<TTag> {
-		const id = this.#idPlugin.generate();
+		const id = this.#idProvider.generate();
 		const tag = { ...data, id } as TTag;
 
-		this.#tags.set(this.#idPlugin.serialize(id), tag);
+		this.#tags.set(this.#idProvider.serialize(id), tag);
 
 		return tag;
 	}
 
 	async getTag(id: IdOf<TTag>): Promise<null | TTag> {
-		return this.#tags.get(this.#idPlugin.serialize(id)) ?? null;
+		return this.#tags.get(this.#idProvider.serialize(id)) ?? null;
 	}
 
 	async listTags(): Promise<TTag[]> {
@@ -49,7 +65,7 @@ export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements Stora
 	}
 
 	async updateTag(id: IdOf<TTag>, patch: Partial<Omit<TTag, "id">>): Promise<TTag> {
-		const key = this.#idPlugin.serialize(id);
+		const key = this.#idProvider.serialize(id);
 		const existing = this.#tags.get(key);
 		if (!existing) throw new TagNotFoundError(id);
 
@@ -60,7 +76,7 @@ export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements Stora
 	}
 
 	async deleteTag(id: IdOf<TTag>): Promise<boolean> {
-		const key = this.#idPlugin.serialize(id);
+		const key = this.#idProvider.serialize(id);
 		const existed = this.#tags.delete(key);
 
 		if (existed) {
@@ -77,7 +93,7 @@ export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements Stora
 	}
 
 	async addRelations(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void> {
-		const tagIdString = this.#idPlugin.serialize(tagId);
+		const tagIdString = this.#idProvider.serialize(tagId);
 		let tagSet = this.#tagToObjects.get(tagIdString);
 		if (!tagSet) {
 			tagSet = new Set();
@@ -99,7 +115,7 @@ export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements Stora
 	}
 
 	async removeRelations(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void> {
-		const tagIdString = this.#idPlugin.serialize(tagId);
+		const tagIdString = this.#idProvider.serialize(tagId);
 		const tagSet = this.#tagToObjects.get(tagIdString);
 		for (const objectKey of objectKeys) {
 			const objectKeyString = objectKey as string;
@@ -114,12 +130,12 @@ export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements Stora
 
 		return set
 			.values()
-			.map((raw) => this.#idPlugin.deserialize(raw))
+			.map((raw) => this.#idProvider.deserialize(raw))
 			.toArray();
 	}
 
 	async listTagObjects(tagId: IdOf<TTag>): Promise<ObjectKey[]> {
-		const set = this.#tagToObjects.get(this.#idPlugin.serialize(tagId));
+		const set = this.#tagToObjects.get(this.#idProvider.serialize(tagId));
 		if (!set) return [];
 
 		return Array.from(set) as ObjectKey[];
@@ -136,7 +152,12 @@ export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements Stora
 		return countObjectQueryInMemory<TTag>(query, this);
 	}
 
-	getAuxStore<TData = unknown>(extensionId: symbol): AuxStore<IdOf<TTag>, TData> {
+	// AuxCodec is ignored for the in-memory adapter — raw objects are stored directly,
+	// so serialization is unnecessary and would add overhead with no benefit.
+	getAuxStore<TData = unknown>(
+		extensionId: symbol,
+		_auxCodec?: AuxCodec<TData>,
+	): AuxStore<IdOf<TTag>, TData> {
 		const cached = this.#auxStoreWrappers.get(extensionId);
 		if (cached) return cached as AuxStore<IdOf<TTag>, TData>;
 
@@ -149,7 +170,7 @@ export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements Stora
 			return value as Map<string, TData>;
 		})();
 
-		const idPlugin = this.#idPlugin; // NOTE: avoid accessing `this` in wrapper methods
+		const idPlugin = this.#idProvider; // capture once — avoid accessing `this` in wrapper methods
 		const wrapper: AuxStore<IdOf<TTag>, TData> = {
 			async find(key) {
 				return bucket.get(idPlugin.serialize(key)) ?? null;

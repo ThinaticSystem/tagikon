@@ -1,8 +1,6 @@
-export interface IdProvider<TId> {
+import type { TagPropertyCodec } from "../storage-adapter/codec.ts";
+
+export interface IdProvider<TId> extends TagPropertyCodec<TId, string> {
 	/** Issue new ID */
 	readonly generate: () => TId;
-	/** Convert ID to string */
-	readonly serialize: (id: TId) => string;
-	/** Convert string to ID */
-	readonly deserialize: (raw: string) => TId;
 }

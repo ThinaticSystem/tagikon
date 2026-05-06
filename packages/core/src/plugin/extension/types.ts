@@ -3,6 +3,7 @@ import type { IdOf, Tag } from "../../core/tag.ts";
 import type { HookPhases } from "../../hook/types.ts";
 import type { FindObjectsOptions, ObjectQuery } from "../../query/types.ts";
 import type { Permission, PermissionManifest } from "../../security/permission.ts";
+import type { AuxCodec } from "../storage-adapter/codec.ts";
 import type { ExtensionContext } from "./context.ts";
 
 //#region Hook input / output type aliases per operation
@@ -122,6 +123,13 @@ export interface Extension<
 	 * `ChildrenApiOf<typeof extensionsArray>`.
 	 */
 	extensions?: readonly ExtensionRegistration<symbol, ApiShape>[];
+	/**
+	 * Optional codec for the extension's auxiliary data store (`ctx.aux`).
+	 * When provided, the adapter uses it to serialize/deserialize TAux instead of
+	 * the default JSON behavior. Required when TAux contains non-JSON-serializable
+	 * values such as `bigint` or custom class instances.
+	 */
+	auxCodec?: AuxCodec<TAux>;
 	hooks?: {
 		addTag?: HookPhases<ExtensionContext<TTag, TAux, TChildrenApi>, AddTagInput<TTag>, TTag>;
 		listTags?: HookPhases<ExtensionContext<TTag, TAux, TChildrenApi>, ListTagsInput, TTag[]>;

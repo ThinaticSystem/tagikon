@@ -50,7 +50,8 @@ const assertSameSet = (actual: readonly ObjectKey[], expected: readonly ObjectKe
  * - obj3: tag-a
  */
 const setupHas = async () => {
-	const storage = new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER);
+	const storage = new MapStorageAdapter<TagWithName>();
+	storage.setIdProvider(UUID_ID_PROVIDER);
 	const tags = {
 		a: await storage.createTag({ name: "a" }),
 		b: await storage.createTag({ name: "b" }),
@@ -70,7 +71,8 @@ const setupHas = async () => {
  * - name="bar": obj3
  */
 const setupStringTags = async () => {
-	const storage = new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER);
+	const storage = new MapStorageAdapter<TagWithName>();
+	storage.setIdProvider(UUID_ID_PROVIDER);
 	const tags = {
 		foo: await storage.createTag({ name: "foo" }),
 		foobar: await storage.createTag({ name: "foobar" }),
@@ -90,7 +92,8 @@ const setupStringTags = async () => {
  * - score=30: obj2, obj3
  */
 const setupScoreTags = async () => {
-	const storage = new MapStorageAdapter<TagWithScore>(UUID_ID_PROVIDER);
+	const storage = new MapStorageAdapter<TagWithScore>();
+	storage.setIdProvider(UUID_ID_PROVIDER);
 	const tags = {
 		low: await storage.createTag({ score: 10 }),
 		mid: await storage.createTag({ score: 20 }),

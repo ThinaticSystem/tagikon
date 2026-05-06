@@ -1,9 +1,23 @@
 import type { ObjectKey } from "../../core/ids.ts";
 import type { IdOf, Tag } from "../../core/tag.ts";
 import type { FindObjectsOptions, ObjectQuery } from "../../query/types.ts";
+import type { IdProvider } from "../id-provider/types.ts";
 import type { AuxStore } from "./aux-store.ts";
+import type { AuxCodec, TagShape } from "./codec.ts";
 
 export interface StorageAdapter<TTag extends Tag = Tag> {
+	/**
+	 * Called by `setupTagikon` to provide the ID provider extracted from `tagShape.id`.
+	 * Must be called before any other method.
+	 */
+	setIdProvider(provider: IdProvider<IdOf<TTag>>): void;
+
+	/**
+	 * Optional. Called by `setupTagikon` to provide per-property codecs from `tagShape`.
+	 * Adapters that do not need serialization (e.g., in-memory) may ignore this.
+	 */
+	setTagCodec?(codec: TagShape<TTag>): void;
+
 	createTag(data: Omit<TTag, "id">): Promise<TTag>;
 	getTag(id: IdOf<TTag>): Promise<null | TTag>;
 	listTags(): Promise<TTag[]>;
@@ -42,6 +56,12 @@ export interface StorageAdapter<TTag extends Tag = Tag> {
 	 *
 	 * Each extension sees only its own AuxStore — isolation across extensions is
 	 * the runtime's responsibility (this method must not be exposed to extensions).
+	 *
+	 * If `auxCodec` is provided, the adapter uses it for serialization/deserialization
+	 * instead of its default (typically JSON).
 	 */
-	getAuxStore<TData = unknown>(extensionId: symbol): AuxStore<IdOf<TTag>, TData>;
+	getAuxStore<TData = unknown>(
+		extensionId: symbol,
+		auxCodec?: AuxCodec<TData>,
+	): AuxStore<IdOf<TTag>, TData>;
 }

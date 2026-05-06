@@ -12,6 +12,7 @@ import { TagNotFoundError } from "./core/errors.ts";
 import { objectKey } from "./core/ids.ts";
 import { setupTagikon } from "./factory.ts";
 import { use } from "./plugin/extension/use.ts";
+import { tpc } from "./plugin/storage-adapter/codec.ts";
 import { taggedWithAny, tagsById } from "./query/builders.ts";
 import { PermissionDeniedError } from "./security/permission.ts";
 
@@ -20,8 +21,14 @@ interface TagWithLabel extends Tag<Uuid> {
 }
 
 const makeTagikon = () => {
-	const storage = new MapStorageAdapter<TagWithLabel>(UUID_ID_PROVIDER);
-	const tagikon = setupTagikon({ storageAdapter: storage });
+	const storage = new MapStorageAdapter<TagWithLabel>();
+	const tagikon = setupTagikon({
+		tagShape: {
+			id: UUID_ID_PROVIDER,
+			label: tpc.string(),
+		},
+		storageAdapter: storage,
+	});
 	return { tagikon, storage };
 };
 
@@ -120,7 +127,11 @@ suite("setupTagikon", () => {
 		test("tapRaw is called before transform with the original input", async () => {
 			const tapRaw = vi.fn();
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithLabel>(UUID_ID_PROVIDER),
+				tagShape: {
+					id: UUID_ID_PROVIDER,
+					label: tpc.string(),
+				},
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
 				extensions: [use<TagWithLabel>({ hooks: { addTag: { tapRaw } } })],
 			});
 			await tagikon.addTag({ label: "observe" });
@@ -132,7 +143,11 @@ suite("setupTagikon", () => {
 
 		test("transform can mutate the input before storage write", async () => {
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithLabel>(UUID_ID_PROVIDER),
+				tagShape: {
+					id: UUID_ID_PROVIDER,
+					label: tpc.string(),
+				},
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
 				extensions: [
 					use<TagWithLabel>({
 						hooks: {
@@ -152,7 +167,11 @@ suite("setupTagikon", () => {
 		test("after hook receives the transformed input and created tag", async () => {
 			const after = vi.fn();
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithLabel>(UUID_ID_PROVIDER),
+				tagShape: {
+					id: UUID_ID_PROVIDER,
+					label: tpc.string(),
+				},
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
 				extensions: [use<TagWithLabel>({ hooks: { addTag: { after } } })],
 			});
 			const tag = await tagikon.addTag({ label: "hook-test" });
@@ -173,7 +192,8 @@ suite("setupTagikon", () => {
 				},
 			};
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
+				tagShape: { id: UUID_ID_PROVIDER },
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(),
 				extensions: [use(extension)],
 			});
 			expect(tagikon[MY_EXTENSION_NS].greet()).toBe("hello");
@@ -195,7 +215,8 @@ suite("setupTagikon", () => {
 				},
 			};
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
+				tagShape: { id: UUID_ID_PROVIDER },
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(),
 				extensions: [use(extension, { permissions: ["tag:read"] })],
 			});
 			await tagikon.addTag({});
@@ -221,7 +242,11 @@ suite("setupTagikon", () => {
 			};
 
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithLabel>(UUID_ID_PROVIDER),
+				tagShape: {
+					id: UUID_ID_PROVIDER,
+					label: tpc.string(),
+				},
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
 				extensions: [use<TagWithLabel>(wrapper)],
 			});
 
@@ -278,7 +303,8 @@ suite("setupTagikon", () => {
 			};
 
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
+				tagShape: { id: UUID_ID_PROVIDER },
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(),
 				extensions: [use(wrapper)],
 			});
 
@@ -316,7 +342,8 @@ suite("setupTagikon", () => {
 			};
 
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
+				tagShape: { id: UUID_ID_PROVIDER },
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(),
 				extensions: [use(publicExt)],
 			});
 
@@ -356,7 +383,8 @@ suite("setupTagikon", () => {
 			};
 
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
+				tagShape: { id: UUID_ID_PROVIDER },
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(),
 				extensions: [use(extA, { permissions: ["tag:read"] }), use(extB)],
 			});
 
@@ -374,7 +402,11 @@ suite("setupTagikon", () => {
 
 		test("addTag propagates extension fields through transform", async () => {
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithDesc>(UUID_ID_PROVIDER),
+				tagShape: {
+					id: UUID_ID_PROVIDER,
+					description: tpc.string(),
+				},
+				storageAdapter: new MapStorageAdapter<TagWithDesc>(),
 				extensions: [
 					use<TagWithDesc>({
 						hooks: {
@@ -460,7 +492,8 @@ suite("setupTagikon", () => {
 					},
 				};
 				const tagikon = setupTagikon({
-					storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
+					tagShape: { id: UUID_ID_PROVIDER },
+					storageAdapter: new MapStorageAdapter<Tag<Uuid>>(),
 					extensions: [use(ext)],
 				});
 				await tagikon[NS].run();
@@ -487,7 +520,8 @@ suite("setupTagikon", () => {
 					},
 				};
 				const tagikon = setupTagikon({
-					storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
+					tagShape: { id: UUID_ID_PROVIDER },
+					storageAdapter: new MapStorageAdapter<Tag<Uuid>>(),
 					extensions: [use(ext, { permissions: [permission] })],
 				});
 				await tagikon[NS].run();

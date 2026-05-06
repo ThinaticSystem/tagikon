@@ -9,6 +9,7 @@ import {
 	setupTagikon,
 	taggedWithAny,
 	tagsWhere,
+	tpc,
 	use,
 } from "@tagikon/core";
 import { UUID_ID_PROVIDER } from "@tagikon/id-provider-uuid";
@@ -18,9 +19,13 @@ import { expect, suite, test } from "vitest";
 import { SOFT_DELETE_NS, createSoftDelete } from "./index.ts";
 
 const setup = () => {
-	const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>(UUID_ID_PROVIDER);
+	const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>();
 	const extension = createSoftDelete<TagWithSoftDelete<Uuid>>();
 	const server = setupTagikon({
+		tagShape: {
+			id: UUID_ID_PROVIDER,
+			isDeleted: tpc.boolean(),
+		},
 		storageAdapter: storage,
 		extensions: [use(extension, { permissions: ["tag:read", "tag:write"] })],
 	});
@@ -131,7 +136,8 @@ suite("createSoftDelete", () => {
 
 suite("tag property queries with evaluateObjectQueryInMemory", () => {
 	test("tagsWhere: finds objects tagged with tags matching the property value", async () => {
-		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>(UUID_ID_PROVIDER);
+		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>();
+		storage.setIdProvider(UUID_ID_PROVIDER);
 
 		const active = await storage.createTag({ isDeleted: false });
 		const deleted = await storage.createTag({ isDeleted: true });
@@ -149,7 +155,8 @@ suite("tag property queries with evaluateObjectQueryInMemory", () => {
 	});
 
 	test("not(tagsWhere): excludes objects tagged with matching tags", async () => {
-		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>(UUID_ID_PROVIDER);
+		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>();
+		storage.setIdProvider(UUID_ID_PROVIDER);
 
 		const active = await storage.createTag({ isDeleted: false });
 		const deleted = await storage.createTag({ isDeleted: true });

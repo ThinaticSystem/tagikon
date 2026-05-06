@@ -9,9 +9,10 @@ import { expect, suite, test } from "vitest";
 import { HIERARCHY_NS, HierarchyCycleError, createHierarchy } from "./index.ts";
 
 const setup = () => {
-	const storage = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
+	const storage = new MapStorageAdapter<Tag<Uuid>>();
 	const extension = createHierarchy<Tag<Uuid>>();
 	const tagikon = setupTagikon({
+		tagShape: { id: UUID_ID_PROVIDER },
 		storageAdapter: storage,
 		extensions: [use(extension, { permissions: ["tag:read", "tag:write"] })],
 	});

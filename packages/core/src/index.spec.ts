@@ -14,6 +14,7 @@ import {
 	taggedWithAny,
 	TagikonError,
 	tagsById,
+	tpc,
 	use,
 } from "./index.ts";
 
@@ -25,7 +26,11 @@ suite("Public API", () => {
 	suite("core workflow", () => {
 		test("creates and lists tags", async () => {
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER),
+				tagShape: {
+					id: UUID_ID_PROVIDER,
+					name: tpc.string(),
+				},
+				storageAdapter: new MapStorageAdapter<TagWithName>(),
 			});
 
 			const work = await tagikon.addTag({ name: "work" });
@@ -39,7 +44,11 @@ suite("Public API", () => {
 
 		test("returns false on delete of nonexistent tag", async () => {
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER),
+				tagShape: {
+					id: UUID_ID_PROVIDER,
+					name: tpc.string(),
+				},
+				storageAdapter: new MapStorageAdapter<TagWithName>(),
 			});
 
 			const tag = await tagikon.addTag({ name: "tmp" });
@@ -55,13 +64,14 @@ suite("Public API", () => {
 
 		test("library errors are instanceof TagikonError", async () => {
 			const tagikon = setupTagikon({
-				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER),
+				tagShape: { id: UUID_ID_PROVIDER },
+				storageAdapter: new MapStorageAdapter<Tag<Uuid>>(),
 			});
 
 			const tag = await tagikon.addTag({});
 			await tagikon.deleteTag(tag.id);
 
-			await expect(tagikon.editTag(tag.id, { name: "y" })).rejects.toBeInstanceOf(TagikonError);
+			await expect(tagikon.editTag(tag.id, {})).rejects.toBeInstanceOf(TagikonError);
 		});
 	});
 
@@ -72,8 +82,14 @@ suite("Public API", () => {
 		 * - doc3: personal
 		 */
 		const setupFindScenario = async () => {
-			const storage = new MapStorageAdapter<TagWithName>(UUID_ID_PROVIDER);
-			const tagikon = setupTagikon({ storageAdapter: storage });
+			const storage = new MapStorageAdapter<TagWithName>();
+			const tagikon = setupTagikon({
+				tagShape: {
+					id: UUID_ID_PROVIDER,
+					name: tpc.string(),
+				},
+				storageAdapter: storage,
+			});
 
 			const work = await tagikon.addTag({ name: "work" });
 			const personal = await tagikon.addTag({ name: "personal" });
@@ -132,8 +148,12 @@ suite("Public API", () => {
 		}
 
 		test("extended tag fields are preserved through addTag", async () => {
-			const storage = new MapStorageAdapter<TagWithNote>(UUID_ID_PROVIDER);
+			const storage = new MapStorageAdapter<TagWithNote>();
 			const tagikon = setupTagikon({
+				tagShape: {
+					id: UUID_ID_PROVIDER,
+					note: tpc.string(),
+				},
 				storageAdapter: storage,
 				extensions: [
 					use<TagWithNote>({
@@ -170,8 +190,9 @@ suite("Public API", () => {
 					},
 				},
 			};
-			const storage = new MapStorageAdapter<Tag<Uuid>>(UUID_ID_PROVIDER);
+			const storage = new MapStorageAdapter<Tag<Uuid>>();
 			const tagikon = setupTagikon({
+				tagShape: { id: UUID_ID_PROVIDER },
 				storageAdapter: storage,
 				extensions: [
 					use(extension, {

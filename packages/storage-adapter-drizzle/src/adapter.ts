@@ -1,13 +1,16 @@
 import type { TagikonSchema } from "./schema.ts";
 import type {
+	AuxCodec,
 	AuxStore,
 	FindObjectsOptions,
 	IdOf,
 	IdProvider,
+	JsonPrimitive,
 	ObjectKey,
 	ObjectQuery,
 	StorageAdapter,
 	Tag,
+	TagShape,
 } from "@tagikon/core";
 import type { SQL } from "drizzle-orm";
 
@@ -42,29 +45,104 @@ const resolveExtensionKey = (extensionId: symbol): string => {
 	return description;
 };
 
+/** Keys that could be used in prototype-pollution attacks; strip them from DB-sourced JSON. */
+const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+const safeJsonParse = <TResult extends Record<string, unknown>>(raw: string): TResult => {
+	const parsed = JSON.parse(raw) as Record<string, unknown>;
+	return Object.fromEntries(
+		Object.entries(parsed).filter(([key]) => !DANGEROUS_KEYS.has(key)),
+	) as TResult;
+};
+
 export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAdapter<TTag> {
 	readonly #db: DrizzleClient;
 	readonly #schema: TagikonSchema;
-	readonly #idPlugin: IdProvider<IdOf<TTag>>;
+	/**
+	 * DO NOT ACCESS DIRECTLY\
+	 * Use {@link #idProvider} getter instead, which throws if this is not set yet.
+	 */
+	#_idProvider: null | IdProvider<IdOf<TTag>> = null;
+	#tagCodec: null | TagShape<TTag> = null;
 	readonly #auxStoreCache = new Map<symbol, AuxStore<IdOf<TTag>, unknown>>();
 
-	constructor(db: DrizzleClient, schema: TagikonSchema, idPlugin: IdProvider<IdOf<TTag>>) {
+	constructor(db: DrizzleClient, schema: TagikonSchema) {
 		this.#db = db;
 		this.#schema = schema;
-		this.#idPlugin = idPlugin;
+	}
+
+	setIdProvider(provider: IdProvider<IdOf<TTag>>): void {
+		this.#_idProvider = provider;
+	}
+
+	setTagCodec(codec: TagShape<TTag>): void {
+		this.#tagCodec = codec;
+	}
+
+	get #idProvider(): IdProvider<IdOf<TTag>> {
+		if (!this.#_idProvider)
+			// FIXME: Error class should extends TagikonError
+			throw new Error("DrizzleStorageAdapter: setIdProvider must be called before any operation.");
+		return this.#_idProvider;
+	}
+
+	#serializeTagProps(data: Omit<TTag, "id">): string {
+		if (!this.#tagCodec) return JSON.stringify(data);
+
+		const codec = this.#tagCodec;
+		const result = Object.entries(data).reduce<Record<string, JsonPrimitive>>(
+			(acc, [key, value]) => {
+				const propertyCodec = (
+					codec as Record<string, undefined | { serialize: (v: unknown) => JsonPrimitive }>
+				)[key];
+				// NOTE: Don't use optional chaining here since a propertyCodec with a null JsonPrimitive value.
+				acc[key] = propertyCodec ? propertyCodec.serialize(value) : (value as JsonPrimitive);
+				return acc;
+			},
+			{},
+		);
+		return JSON.stringify(result);
+	}
+
+	#deserializeTagProps(raw: string): Omit<TTag, "id"> {
+		const parsed = safeJsonParse<Record<string, JsonPrimitive>>(raw);
+		if (!this.#tagCodec) return parsed as Omit<TTag, "id">;
+
+		const codec = this.#tagCodec;
+		const result = Object.entries(parsed).reduce<Record<string, unknown>>((acc, [key, value]) => {
+			const propertyCodec = (
+				codec as Record<string, { deserialize: (v: JsonPrimitive) => unknown } | undefined>
+			)[key];
+			// NOTE: Don't use optional chaining here since a propertyCodec with a nullish value.
+			acc[key] = propertyCodec ? propertyCodec.deserialize(value) : value;
+			return acc;
+		}, {});
+		return result as Omit<TTag, "id">;
+	}
+
+	#serializePropertyValue(property: string, value: unknown): JsonPrimitive {
+		const codec = this.#tagCodec;
+		if (!codec) return value as JsonPrimitive;
+
+		const propertyCodec = (
+			codec as Record<string, { serialize: (v: unknown) => JsonPrimitive } | undefined>
+		)[property];
+		// NOTE: Don't use optional chaining here since a propertyCodec with a null JsonPrimitive value.
+		return propertyCodec ? propertyCodec.serialize(value) : (value as JsonPrimitive);
 	}
 
 	#rowToTag(row: TagRow): TTag {
-		return { ...JSON.parse(row.data), id: this.#idPlugin.deserialize(row.id) } as TTag;
+		const props = this.#deserializeTagProps(row.data);
+		return { ...props, id: this.#idProvider.deserialize(row.id) } as TTag;
 	}
 
 	async createTag(data: Omit<TTag, "id">): Promise<TTag> {
-		const id = this.#idPlugin.generate();
-		const serializedId = this.#idPlugin.serialize(id);
+		const id = this.#idProvider.generate();
+		const serializedId = this.#idProvider.serialize(id);
 
 		await this.#db
 			.insert(this.#schema.tags)
-			.values({ id: serializedId, data: JSON.stringify(data) });
+			.values({ id: serializedId, data: this.#serializeTagProps(data) });
 
 		return { ...data, id } as TTag;
 	}
@@ -73,7 +151,7 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 		const rows = (await this.#db
 			.select()
 			.from(this.#schema.tags)
-			.where(eq(this.#schema.tags.id, this.#idPlugin.serialize(id)))) as TagRow[];
+			.where(eq(this.#schema.tags.id, this.#idProvider.serialize(id)))) as TagRow[];
 
 		const row = rows[0] ?? null;
 		return row ? this.#rowToTag(row) : null;
@@ -93,8 +171,8 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 
 		await this.#db
 			.update(this.#schema.tags)
-			.set({ data: JSON.stringify(storageData) })
-			.where(eq(this.#schema.tags.id, this.#idPlugin.serialize(id)));
+			.set({ data: this.#serializeTagProps(storageData) })
+			.where(eq(this.#schema.tags.id, this.#idProvider.serialize(id)));
 
 		return updated;
 	}
@@ -103,7 +181,7 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 		const existing = await this.getTag(id);
 		if (!existing) return false;
 
-		const serializedId = this.#idPlugin.serialize(id);
+		const serializedId = this.#idProvider.serialize(id);
 
 		await this.#db
 			.delete(this.#schema.relations)
@@ -117,7 +195,7 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 	async addRelations(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void> {
 		if (objectKeys.length === 0) return;
 
-		const tagIdString = this.#idPlugin.serialize(tagId);
+		const tagIdString = this.#idProvider.serialize(tagId);
 		const values = objectKeys.map((key) => ({ tagId: tagIdString, objectKey: key as string }));
 
 		await this.#db.insert(this.#schema.relations).values(values).onConflictDoNothing();
@@ -126,7 +204,7 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 	async removeRelations(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void> {
 		if (objectKeys.length === 0) return;
 
-		const tagIdString = this.#idPlugin.serialize(tagId);
+		const tagIdString = this.#idProvider.serialize(tagId);
 
 		await this.#db.delete(this.#schema.relations).where(
 			and(
@@ -145,14 +223,14 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 			.from(this.#schema.relations)
 			.where(eq(this.#schema.relations.objectKey, objectKey as string))) as RelationRow[];
 
-		return rows.map((row) => this.#idPlugin.deserialize(row.tagId));
+		return rows.map((row) => this.#idProvider.deserialize(row.tagId));
 	}
 
 	async listTagObjects(tagId: IdOf<TTag>): Promise<ObjectKey[]> {
 		const rows = (await this.#db
 			.select()
 			.from(this.#schema.relations)
-			.where(eq(this.#schema.relations.tagId, this.#idPlugin.serialize(tagId)))) as RelationRow[];
+			.where(eq(this.#schema.relations.tagId, this.#idProvider.serialize(tagId)))) as RelationRow[];
 
 		return rows.map((row) => row.objectKey as ObjectKey);
 	}
@@ -165,16 +243,21 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 			query,
 			this.#schema,
 			this.#schema.dialect,
-			(id) => this.#idPlugin.serialize(id),
+			(id) => this.#idProvider.serialize(id),
 			options,
+			(property, value) => this.#serializePropertyValue(property, value),
 		);
 		const rows = await this.#executeRaw<{ object_key: string }>(compiledSql);
 		return rows.map((row) => row.object_key as ObjectKey);
 	}
 
 	async countObjects(query: ObjectQuery<IdOf<TTag>>): Promise<number> {
-		const compiledSql = compileCountObjects(query, this.#schema, this.#schema.dialect, (id) =>
-			this.#idPlugin.serialize(id),
+		const compiledSql = compileCountObjects(
+			query,
+			this.#schema,
+			this.#schema.dialect,
+			(id) => this.#idProvider.serialize(id),
+			(property, value) => this.#serializePropertyValue(property, value),
 		);
 		const rows = await this.#executeRaw<{ n: number | bigint }>(compiledSql);
 		const row = rows[0];
@@ -195,15 +278,25 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 		}
 	}
 
-	getAuxStore<TData = unknown>(extensionId: symbol): AuxStore<IdOf<TTag>, TData> {
+	getAuxStore<TData = unknown>(
+		extensionId: symbol,
+		auxCodec?: AuxCodec<TData>,
+	): AuxStore<IdOf<TTag>, TData> {
 		const cached = this.#auxStoreCache.get(extensionId);
 		if (cached) return cached as AuxStore<IdOf<TTag>, TData>;
 
 		const extensionKey = resolveExtensionKey(extensionId);
 		const schema = this.#schema;
 		const db = this.#db;
-		const serialize = (key: IdOf<TTag>): string => this.#idPlugin.serialize(key);
-		const deserialize = (raw: string): IdOf<TTag> => this.#idPlugin.deserialize(raw);
+		const serialize = (key: IdOf<TTag>): string => this.#idProvider.serialize(key);
+		const deserialize = (raw: string): IdOf<TTag> => this.#idProvider.deserialize(raw);
+
+		const encodeData: (data: TData) => string = auxCodec
+			? (data) => auxCodec.serialize(data)
+			: (data) => JSON.stringify(data);
+		const decodeData: (raw: string) => TData = auxCodec
+			? (raw) => auxCodec.deserialize(raw)
+			: (raw) => safeJsonParse(raw) as TData;
 
 		const store: AuxStore<IdOf<TTag>, TData> = {
 			async find(key) {
@@ -215,11 +308,11 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 					)) as AuxRow[];
 
 				const row = rows[0] ?? null;
-				return row ? (JSON.parse(row.data) as TData) : null;
+				return row ? decodeData(row.data) : null;
 			},
 
 			async put(key, data) {
-				const serializedData = JSON.stringify(data);
+				const serializedData = encodeData(data);
 				await db
 					.insert(schema.aux)
 					.values({ extensionKey, tagId: serialize(key), data: serializedData })
@@ -241,10 +334,10 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 				const row = rows[0] ?? null;
 				if (!row) return null;
 
-				const merged = { ...(JSON.parse(row.data) as TData), ...partial };
+				const merged = { ...decodeData(row.data), ...partial } as TData;
 				await db
 					.update(schema.aux)
-					.set({ data: JSON.stringify(merged) })
+					.set({ data: encodeData(merged) })
 					.where(and(eq(schema.aux.extensionKey, extensionKey), eq(schema.aux.tagId, tagIdString)));
 
 				return merged;
@@ -275,7 +368,7 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 					.where(eq(schema.aux.extensionKey, extensionKey))) as AuxRow[];
 
 				return rows.map(
-					(row) => [deserialize(row.tagId), JSON.parse(row.data) as TData] as [IdOf<TTag>, TData],
+					(row) => [deserialize(row.tagId), decodeData(row.data)] as [IdOf<TTag>, TData],
 				);
 			},
 		};

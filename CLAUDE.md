@@ -390,8 +390,13 @@ TagikonError (基底)
 ## Storage Adapter インターフェース
 
 ```typescript
-// 無引数インスタンス化が型安全になるよう concrete default を明示する
-interface StorageAdapter<TTag extends Tag = Tag<TagId>> {
+interface StorageAdapter<TTag extends Tag = Tag> {
+	// setupTagikon が tagShape.id から呼び出す。他メソッドより前に呼ぶ必要がある。
+	setIdProvider(provider: IdProvider<IdOf<TTag>>): void;
+	// optional。setupTagikon が tagShape の per-property コーデックを渡す。
+	// シリアライズが不要な adapter（インメモリ等）は実装しなくてよい。
+	setTagCodec?(codec: TagShape<TTag>): void;
+
 	createTag(data: Omit<TTag, "id">): Promise<TTag>;
 	getTag(id: IdOf<TTag>): Promise<null | TTag>;
 	listTags(): Promise<TTag[]>;
@@ -412,7 +417,11 @@ interface StorageAdapter<TTag extends Tag = Tag<TagId>> {
 
 	// 各 extension の追加属性を保持する private な KV ストア。
 	// 同じ symbol で複数回呼んでも同一の AuxStore を返す。
-	getAuxStore<TData = unknown>(extensionId: symbol): AuxStore<IdOf<TTag>, TData>;
+	// auxCodec を渡すと adapter がそれを使ってシリアライズする（省略時は JSON）。
+	getAuxStore<TData = unknown>(
+		extensionId: symbol,
+		auxCodec?: AuxCodec<TData>,
+	): AuxStore<IdOf<TTag>, TData>;
 }
 
 interface AuxStore<TKey, TData> {
@@ -428,10 +437,10 @@ interface AuxStore<TKey, TData> {
 
 - `name` はコアに含めない。利用者がコアを `TagWithName` で intersection 拡張して使う
 - `TId` は独立した型パラメータとせず `IdOf<T>` をインラインで使用（常に `IdOf<T>` と等価のため）
-- ID生成はアダプターが内部で行う（`IdProvider` をアダプターのコンストラクタに注入する方式）
+- `setupTagikon` が `tagShape.id`（`IdProvider`）を `setIdProvider` で adapter に注入する。アダプターのコンストラクタに `IdProvider` を渡さない
 - **タグ自体（id・存在・公開属性）は全 extension で共有**。タグの `addTag` / `deleteTag` / `updateTag` は皆が観測可能
 - **「タグに紐づく追加属性」だけ** が extension ごとに `AuxStore` 内に隔離される。Public 登録された extension は自身の AuxStore を `api` 経由で外部に公開できるが、ネスト下の extension は親からしか触れない
-- `ExtensionContext.storage` は `getAuxStore` を見せない proxy view（`ExtensionStorageView<TTag>`）。これにより extension が他 extension の AuxStore を直接覗く経路を物理的に塞ぐ
+- `ExtensionContext.storage` は `getAuxStore` / `setIdProvider` / `setTagCodec` を見せない proxy view（`ExtensionStorageView<TTag>`）。これにより extension が他 extension の AuxStore を直接覗いたり、アダプター設定を変更する経路を物理的に塞ぐ
 
 ---
 
@@ -487,11 +496,12 @@ pnpm check         # CI相当の全チェック
 | `packages/core/src/core/tag-kind.ts`                     | `TAG_KIND` 定数 + `TagKind` 型（コア非公開・プラグイン向けユーティリティ）                                                                                                                                                                                                                                                                                                                                                                   |
 | `packages/core/src/core/tag.ts`                          | `Tag<TId>` (default: unknown) + `IdOf<TTag>`（`name` / `kind` はコアから除外。`id` のみ）                                                                                                                                                                                                                                                                                                                                                    |
 | `packages/core/src/core/errors.ts`                       | `TagikonError` / `ExtensionError` / `IllegalExtensionDefinitionError` / `NamespaceNotFoundError` / `TagNotFoundError<TId>` / `TagAlreadyExistsError` / `ObjectNotTaggedError<TId>`（エラークラスをジェネリック化 — `tagId` フィールドの型が `TId` として伝播）                                                                                                                                                                               |
-| `packages/core/src/plugin/storage-adapter/types.ts`      | `StorageAdapter<TTag>` インターフェース（default: `Tag`）+ `findObjects` / `countObjects` / `getAuxStore`                                                                                                                                                                                                                                                                                                                                    |
+| `packages/core/src/plugin/storage-adapter/codec.ts`      | `JsonPrimitive` / `TagPropertyCodec<TValue, TStored>` / `TagShape<TTag>` / `AuxCodec<TData>` / `TagFromShape<TShape>` / `tpc` 組み込みコーデック（string / number / boolean / bigint / json）                                                                                                                                                                                                                                                |
+| `packages/core/src/plugin/storage-adapter/types.ts`      | `StorageAdapter<TTag>` インターフェース（default: `Tag`）+ `setIdProvider`（必須）/ `setTagCodec?`（optional）/ `findObjects` / `countObjects` / `getAuxStore(extensionId, auxCodec?)`                                                                                                                                                                                                                                                       |
 | `packages/core/src/plugin/storage-adapter/aux-store.ts`  | `AuxStore<TKey, TData>` インターフェース（get / set / patch / delete / list）                                                                                                                                                                                                                                                                                                                                                                |
-| `packages/core/src/plugin/id-provider/types.ts`          | `IdProvider<TId>` インターフェース（generate / serialize / deserialize）                                                                                                                                                                                                                                                                                                                                                                     |
+| `packages/core/src/plugin/id-provider/types.ts`          | `IdProvider<TId> extends TagPropertyCodec<TId, string>` — generate / serialize / deserialize。シリアライズ先が常に `string`（DB 主キー列）であることが型で表現される                                                                                                                                                                                                                                                                         |
 | `packages/core/src/plugin/extension/types.ts`            | `Extension<TTag, TNamespace, TApi, TAux, TChildrenApi>`（`hooks?:`・`extensions?:`）/ `ExtensionRegistration` / `ChildrenApiOf` / hook 入力型 (`AddTagInput` / `FindObjectsInput` / `CountObjectsInput` / ...)                                                                                                                                                                                                                               |
-| `packages/core/src/plugin/extension/context.ts`          | `ExtensionContext<TTag, TAux, TChildrenApi>`（`storage` + `aux` 専用 AuxStore + `api` 子 API map）+ `ExtensionStorageView` (storage の getAuxStore 隠蔽)                                                                                                                                                                                                                                                                                     |
+| `packages/core/src/plugin/extension/context.ts`          | `ExtensionContext<TTag, TAux, TChildrenApi>`（`storage` + `aux` 専用 AuxStore + `api` 子 API map）+ `ExtensionStorageView`（`getAuxStore` / `setIdProvider` / `setTagCodec` を隠蔽）                                                                                                                                                                                                                                                         |
 | `packages/core/src/plugin/extension/factory.ts`          | `createExtension(...)` factory（root/children 共通の extension 構築 API。`Object.freeze` 済みの Extension を返す）                                                                                                                                                                                                                                                                                                                           |
 | `packages/core/src/plugin/extension/use.ts`              | `use()` extension登録 + Permission照合 + namespace バリデーション（api あり & namespace なし → `NamespaceNotFoundError`）                                                                                                                                                                                                                                                                                                                    |
 | `packages/core/src/plugin/extension/use.spec.ts`         | `use()` ユニットテスト（namespace バリデーション・Permission照合・frozen戻り値）                                                                                                                                                                                                                                                                                                                                                             |
@@ -502,7 +512,7 @@ pnpm check         # CI相当の全チェック
 | `packages/core/src/query/builders.spec.ts`               | builder ユニットテスト                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `packages/core/src/query/evaluator.ts`                   | `evaluateObjectQueryInMemory` / `countObjectQueryInMemory` / `evaluateTagSelectorAgainstTags` — `listTags` / `listTagObjects` だけで完結するインメモリ評価器                                                                                                                                                                                                                                                                                 |
 | `packages/core/src/query/evaluator.spec.ts`              | evaluator 統合テスト（taggedWithAny / taggedWithAll / and / or / not / tagsWhere 全8 match / TagSelector composition / limit-offset / countObjects）                                                                                                                                                                                                                                                                                         |
-| `packages/core/src/factory.ts`                           | `CoreApi<TTag>` インターフェース + `setupTagikon({ storageAdapter, extensions })`（全 9 操作: addTag / listTags / editTag / deleteTag / tagObjects / untagObjects / resetWithTags / `findObjects` / `countObjects`・拡張ツリー再帰展開・per-extension ctx + AuxStore bind）。`createPermissionGuardedView` でパーミッションに基づき `ctx.storage` を制限                                                                                     |
+| `packages/core/src/factory.ts`                           | `CoreApi<TTag>` インターフェース + `setupTagikon({ tagShape, storageAdapter, extensions })`（`tagShape` 必須・`TTag` は `TagFromShape<TShape>` として推論）。全 9 操作・拡張ツリー再帰展開・per-extension ctx + AuxStore bind。`setIdProvider` / `setTagCodec?` を起動時に呼び出す。`createPermissionGuardedView` でパーミッションに基づき `ctx.storage` を制限                                                                              |
 | `packages/core/src/factory.spec.ts`                      | setupTagikon 統合テスト（フック動作・TagImplement / Custom API / nested extensions / aux 隔離 / パーミッション制限）                                                                                                                                                                                                                                                                                                                         |
 | `packages/core/src/security/permission.ts`               | `Permission` / `PermissionManifest` / `PermissionMismatchError` / `PermissionDeniedError`（いずれも `ExtensionError` 継承）                                                                                                                                                                                                                                                                                                                  |
 | `packages/core/src/security/permission.spec.ts`          | `PermissionDeniedError` / `PermissionMismatchError` ユニットテスト                                                                                                                                                                                                                                                                                                                                                                           |
@@ -510,7 +520,7 @@ pnpm check         # CI相当の全チェック
 | `packages/core/src/index.spec.ts`                        | 公開API エンドツーエンドテスト（core workflow / `findObjects` / `countObjects` / TagImplement / Custom API）                                                                                                                                                                                                                                                                                                                                 |
 | `packages/id-provider-string/src/index.ts`               | `stringIdProvider` — 文字列をIDとして使う `IdProvider` ヘルパー                                                                                                                                                                                                                                                                                                                                                                              |
 | `packages/id-provider-uuid/src/index.ts`                 | `UUID_ID_PROVIDER` / `Uuid` / `uuid` — UUID文字列を発行するデフォルト `IdProvider`                                                                                                                                                                                                                                                                                                                                                           |
-| `packages/storage-adapter-in-memory-map/src/index.ts`    | `MapStorageAdapter<TTag extends Tag = Tag>` インメモリ参照実装（コンストラクタ引数 `idPlugin: IdProvider<IdOf<TTag>>` 必須・デフォルト `Tag`・双方向リレーション管理・`findObjects` / `countObjects` は core の評価器に delegate）                                                                                                                                                                                                           |
+| `packages/storage-adapter-in-memory-map/src/index.ts`    | `MapStorageAdapter<TTag extends Tag = Tag>` インメモリ参照実装（コンストラクタ引数なし。`setIdProvider` で IdProvider を注入。`setTagCodec` は no-op（インメモリは生データ保持）。双方向リレーション管理・`findObjects` / `countObjects` は core の評価器に delegate）                                                                                                                                                                       |
 | `packages/extension-soft-delete/src/index.ts`            | `TagWithSoftDelete<TId = unknown>` / `createSoftDelete` / `SOFT_DELETE_NS` / `SoftDeleteApi`（StorageAdapter 実装なし。`TId` ジェネリック化済み）                                                                                                                                                                                                                                                                                            |
 | `packages/extension-default-attributes/src/index.ts`     | `createDefaultAttributes` — addTag 時に不在属性をプロバイダー関数で補完する組み込み拡張                                                                                                                                                                                                                                                                                                                                                      |
 | `packages/extension-hierarchy/src/index.ts`              | `createHierarchy` / `HIERARCHY_NS` / `HierarchyApi` / `HierarchyCycleError`（親子関係を AuxStore で管理するツリープラグイン）                                                                                                                                                                                                                                                                                                                |
@@ -518,14 +528,23 @@ pnpm check         # CI相当の全チェック
 | `packages/tsconfig/base.json`                            | 全パッケージ共有の tsconfig ベース（`@tagikon/tsconfig` ワークスペースパッケージ）。パッケージ名経由で `extends` することで pnpm symlink 越しの解決バグを回避                                                                                                                                                                                                                                                                                |
 | `typedoc.json`                                           | TypeDoc 設定（`pnpm docs:generate` で `docs/` に HTML を生成。`packages/core/src/index.ts` をエントリーポイントとして使用）                                                                                                                                                                                                                                                                                                                  |
 | `packages/storage-adapter-drizzle/src/schema.ts`         | `createTagikonSqliteSchema(options?)` / `createTagikonPostgresqlSchema(options?)` — Drizzle テーブル定義ファクトリ（SQLite: `tags` / `relations` / `aux` 3テーブル・オブジェクトキー逆引きインデックス付き。PG も同構造。`dialect: "sqlite" \| "postgres"` フィールド付き）                                                                                                                                                                  |
-| `packages/storage-adapter-drizzle/src/adapter.ts`        | `DrizzleStorageAdapter<TTag>` — `StorageAdapter<TTag>` 実装（SQLite / PostgreSQL 対応。`drizzle-orm` をピア依存とし方言非依存の構造型 `DrizzleClient` で受け付け。`symbol.description` を AuxStore の行キーとして使用。タグ属性は JSON 列に保存・復元。`findObjects` / `countObjects` は `query-compiler.ts` が生成する SQL を実行）                                                                                                         |
-| `packages/storage-adapter-drizzle/src/query-compiler.ts` | `compileFindObjects` / `compileCountObjects` — `ObjectQuery` / `TagSelector` を SQL にコンパイルする関数。`INTERSECT` / `UNION` / `EXCEPT` でクエリツリーを表現。`tagsWhere` は dialect-aware JSON アクセス (`json_extract` / `::jsonb ->>`)。SQLite は `all()` / PostgreSQL は `execute()` で実行する dialect 分岐付き                                                                                                                      |
-| `packages/storage-adapter-drizzle/src/adapter.spec.ts`   | `DrizzleStorageAdapter` 統合テスト（`@libsql/client` インメモリ SQLite で全 `StorageAdapter` メソッド + `AuxStore` 5操作 + `findObjects` / `countObjects` を検証。`tagsWhere` / compound query / limit-offset / complement / intersection / union テストを含む）                                                                                                                                                                             |
+| `packages/storage-adapter-drizzle/src/adapter.ts`        | `DrizzleStorageAdapter<TTag>` — `StorageAdapter<TTag>` 実装（コンストラクタ引数なし。`setIdProvider` / `setTagCodec?` 実装。`safeJsonParse` で `__proto__` 等の危険キーを DB から読み取り時に除去。`#serializeTagProps` / `#deserializeTagProps` で per-property コーデックを適用。`getAuxStore(extensionId, auxCodec?)` で `AuxCodec` を受け取り分岐。`findObjects` / `countObjects` で `serializePropertyValue` を query-compiler に渡す） |
+| `packages/storage-adapter-drizzle/src/query-compiler.ts` | `compileFindObjects` / `compileCountObjects` — `ObjectQuery` / `TagSelector` を SQL にコンパイルする関数。`serializePropertyValue?` コールバックで述語値を保存形式にシリアライズ（bigint 対応）。`INTERSECT` / `UNION` / `EXCEPT` でクエリツリーを表現。`tagsWhere` は dialect-aware JSON アクセス (`json_extract` / `::jsonb ->>`)。SQLite は `all()` / PostgreSQL は `execute()` で実行する dialect 分岐付き                               |
+| `packages/storage-adapter-drizzle/src/adapter.spec.ts`   | `DrizzleStorageAdapter` 統合テスト（`@libsql/client` インメモリ SQLite で全 `StorageAdapter` メソッド + `AuxStore` 5操作 + `findObjects` / `countObjects` を検証。`tagsWhere` / compound query / limit-offset / complement / intersection / union テストを含む。bigint round-trip / カスタム `AuxCodec` / `__proto__` プロトタイプ汚染防御テストを追加）                                                                                     |
 
 ### 未実装（次に着手）
 
 優先度は下記の順。
 
+1. **TagPropertyCodecでオプショナルをサポート** — 現状は `TagPropertyCodec` が必須プロパティのみをサポートしているが、オプショナルプロパティもサポートするように拡張する。これにより、`addTag` の入力で必須プロパティのみを渡し、オプショナルプロパティはフックで補完するような使い方ができるようになる。
+
+   TagPropertyCodecはメソッドチェーンでオプショナルプロパティを定義できるようにする（例: `tpc.string("name").optional()`）。
+
+   optionalでないプロパティは型レベルでは従来通り必須で、追加実装として実行時に必須プロパティが存在しない場合にエラーを投げるバリデーションも入れる。
+
+   `@effect/schema`との相互運用も考慮する（例: `fromSchema` ヘルパーで Effect Schema から TagPropertyCodec を生成する）。（これは別npmパッケージとして実装）
+
+1. **StorageAdapterのライフサイクル分割** — 現状は `setIdProvider` / `setTagCodec` を `setupTagikon` の起動時に呼び出す形だが、これを adapter のライフサイクルメソッド（例: `initialize()`）に分割して、adapter が完全に初期化された後に呼び出すようにする。これにより、adapter 内で `IdProvider` / `TagCodec` を必要とする処理を安全に行えるようになる。
 1. JSDoc コメントの追加（特に公開APIは必須）
 
    引数名そのままのような意味のないコメントは不要。引数の意味やデフォルト値、制約、返り値の内容、パターンがある場合は網羅的な記載、コードからは読み取れない情報を補うコメントを心がける。  
@@ -538,12 +557,17 @@ pnpm check         # CI相当の全チェック
     publicなシンボルのコメントではprivateなシンボルの参照や言及を避ける（例: `ExtensionContext` のコメントで `ExtensionStorageView` を直接言及しない）。  
     まず記載例や留意事項をまとめたSKILLを作成する。
 
+1. **プロトタイプ汚染対策処理の共通化** — `safeJsonParse` の実装を各StorageAdapterではなくcoreのデフォルトコードパスに組み込み（オプションで無効化可能）。これにより、すべてのStorageAdapterでプロトタイプ汚染対策が自動的に適用されるようになる。
+1. **StorageAdapterのテストスイートの共通化** — 各StorageAdapterで同一のテストケースを実行するためのテストユーティリティを作成。これにより、すべてのStorageAdapterが同じ基準で検証されるようになる。
+1. **Utilityの凝集整理** — 各モジュールに散らばっているユーティリティ関数を、ユーティリティー用のnpmパッケージにまとめる。
+
+   分割の基準はこのライブラリ固有の処理ではなくJavaScript/TypeScript製のソフトウェアなら適用し得る一般的な処理であること。
+
+1. **テストの網羅性の向上** — 現状は happy path のみのテストが多い。エラーケース（例: 存在しないタグIDで `deleteTag` を呼ぶ）や境界値（例: `findObjects` の limit 0 / 1 / 1000）なども網羅する。
+
+   `test.each` などによるパラメタライズドテストを積極的に活用
+
 ### 未確定事項（設計中）
-
-- **タグオブジェクトやauxのシリアライズ** — Storage への保存/読み込み時にどんなオブジェクトでも Serialize/Deserialize できる必要があるので、Serializer/Deserializer 実装をプラグインが実装できる (必須？)ようにする
-
-  デフォルト (Serializerの指定がない場合)では JSON.stringify / JSON.parse を使うが、ユーザーが独自のシリアライズロジックを提供できるようにするという作戦もあるが、  
-  シリアライズできないエラーは実行時にしかわからないためやや危険。
 
 - **プラグインのマイグレーション機構** — 例えば階層プラグインの実装を変えるときなど、既存のユーザーデータを新しい実装に移行するための仕組み。マイグレーションのための API を提供
 - **論理削除タグ経由のオブジェクトを `findObjects` 結果から自動除外** — `extension-soft-delete` は現状 `listTags.transformOutput` で論理削除タグを除外するだけなので、`findObjects` には反映されない。`findObjects` フックで query を `and([q, not(taggedWithAny(tagsById([...softDeletedIds])))])` に書き換える

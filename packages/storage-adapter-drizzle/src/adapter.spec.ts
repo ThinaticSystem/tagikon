@@ -17,6 +17,7 @@ import {
 	taggedWithAny,
 	tagsById,
 	tagsWhere,
+	tpc,
 	unionTags,
 } from "@tagikon/core";
 import { UUID_ID_PROVIDER } from "@tagikon/id-provider-uuid";
@@ -43,7 +44,9 @@ const setupAdapter = async () => {
 
 	const db = drizzle(client);
 	const schema = createTagikonSqliteSchema();
-	return new DrizzleStorageAdapter<TagWithLabel>(db, schema, UUID_ID_PROVIDER);
+	const adapter = new DrizzleStorageAdapter<TagWithLabel>(db, schema);
+	adapter.setIdProvider(UUID_ID_PROVIDER);
+	return adapter;
 };
 
 suite("DrizzleStorageAdapter", () => {
@@ -507,8 +510,8 @@ suite("DrizzleStorageAdapter", () => {
 			const numAdapter = new DrizzleStorageAdapter<TagWithScore>(
 				drizzle(client),
 				createTagikonSqliteSchema(),
-				UUID_ID_PROVIDER,
 			);
+			numAdapter.setIdProvider(UUID_ID_PROVIDER);
 
 			const t1 = await numAdapter.createTag({ score: 1 });
 			const t5 = await numAdapter.createTag({ score: 5 });
@@ -662,5 +665,133 @@ suite("DrizzleStorageAdapter", () => {
 
 			expect(result).toBe(0);
 		});
+	});
+});
+
+suite("DrizzleStorageAdapter - codec round-trips", () => {
+	const makeAdapterWithBigint = async () => {
+		const client = createClient({ url: ":memory:" });
+		await client.execute("CREATE TABLE tagikon_tags (id TEXT PRIMARY KEY, data TEXT NOT NULL)");
+		await client.execute(
+			"CREATE TABLE tagikon_relations (tag_id TEXT NOT NULL, object_key TEXT NOT NULL, PRIMARY KEY (tag_id, object_key))",
+		);
+		await client.execute(
+			"CREATE TABLE tagikon_aux (extension_key TEXT NOT NULL, tag_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY (extension_key, tag_id))",
+		);
+		type TagWithAmount = Tag<Uuid> & { readonly amount: bigint };
+		const adapter = new DrizzleStorageAdapter<TagWithAmount>(
+			drizzle(client),
+			createTagikonSqliteSchema(),
+		);
+		adapter.setIdProvider(UUID_ID_PROVIDER);
+		adapter.setTagCodec({ id: UUID_ID_PROVIDER, amount: tpc.bigint() });
+		return adapter;
+	};
+
+	test("bigint tag property survives createTag → getTag round-trip", async () => {
+		const adapter = await makeAdapterWithBigint();
+		const tag = await adapter.createTag({ amount: 1_000_000_000_000n });
+
+		const result = await adapter.getTag(tag.id);
+
+		expect(result!.amount).toBe(1_000_000_000_000n);
+		expect(typeof result!.amount).toBe("bigint");
+	});
+
+	test("bigint tag property survives updateTag → getTag round-trip", async () => {
+		const adapter = await makeAdapterWithBigint();
+		const tag = await adapter.createTag({ amount: 1n });
+		await adapter.updateTag(tag.id, { amount: 9999n });
+
+		const result = await adapter.getTag(tag.id);
+
+		expect(result!.amount).toBe(9999n);
+	});
+
+	test("bigint tag property survives listTags round-trip", async () => {
+		const adapter = await makeAdapterWithBigint();
+		await adapter.createTag({ amount: 42n });
+		await adapter.createTag({ amount: 100n });
+
+		const result = await adapter.listTags();
+
+		expect(result).toHaveLength(2);
+		expect(result.every((t) => typeof t.amount === "bigint")).toBe(true);
+	});
+
+	test("propertyEqual with bigint value queries correctly", async () => {
+		const adapter = await makeAdapterWithBigint();
+		const t1 = await adapter.createTag({ amount: 1000n });
+		const t2 = await adapter.createTag({ amount: 2000n });
+
+		await adapter.addRelations(t1.id, [objectKey("obj1")]);
+		await adapter.addRelations(t2.id, [objectKey("obj2")]);
+
+		const result = await adapter.findObjects(
+			taggedWithAny(tagsWhere(propertyEqual("amount", 1000n))),
+		);
+
+		expect(result).toEqual([objectKey("obj1")]);
+	});
+
+	test("aux store with custom AuxCodec round-trips custom class", async () => {
+		const client = createClient({ url: ":memory:" });
+		await client.execute("CREATE TABLE tagikon_tags (id TEXT PRIMARY KEY, data TEXT NOT NULL)");
+		await client.execute(
+			"CREATE TABLE tagikon_relations (tag_id TEXT NOT NULL, object_key TEXT NOT NULL, PRIMARY KEY (tag_id, object_key))",
+		);
+		await client.execute(
+			"CREATE TABLE tagikon_aux (extension_key TEXT NOT NULL, tag_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY (extension_key, tag_id))",
+		);
+
+		const adapter = new DrizzleStorageAdapter<TagWithLabel>(
+			drizzle(client),
+			createTagikonSqliteSchema(),
+		);
+		adapter.setIdProvider(UUID_ID_PROVIDER);
+
+		const EXT = Symbol("custom-codec-ext");
+		const store = adapter.getAuxStore<{ count: number }>(EXT, {
+			serialize: (data) => JSON.stringify(data),
+			deserialize: (raw) => JSON.parse(raw) as { count: number },
+		});
+
+		const tag = await adapter.createTag({ label: "x" });
+		await store.put(tag.id, { count: 99 });
+
+		const result = await store.find(tag.id);
+
+		expect(result).toEqual({ count: 99 });
+	});
+});
+
+suite("DrizzleStorageAdapter – prototype pollution safety", () => {
+	test("__proto__ key in stored tag data does not pollute Object prototype", async () => {
+		const client = createClient({ url: ":memory:" });
+		await client.execute("CREATE TABLE tagikon_tags (id TEXT PRIMARY KEY, data TEXT NOT NULL)");
+		await client.execute(
+			"CREATE TABLE tagikon_relations (tag_id TEXT NOT NULL, object_key TEXT NOT NULL, PRIMARY KEY (tag_id, object_key))",
+		);
+		await client.execute(
+			"CREATE TABLE tagikon_aux (extension_key TEXT NOT NULL, tag_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY (extension_key, tag_id))",
+		);
+		const db = drizzle(client);
+		const schema = createTagikonSqliteSchema();
+		const adapter = new DrizzleStorageAdapter<TagWithLabel>(db, schema);
+		adapter.setIdProvider(UUID_ID_PROVIDER);
+
+		const tag = await adapter.createTag({ label: "safe" });
+
+		// Manually inject a poisoned row into the DB to simulate an attacker-controlled value
+		await client.execute({
+			sql: `UPDATE tagikon_tags SET data = ? WHERE id = ?`,
+			args: [`{"label":"safe","__proto__":{"poisoned":true}}`, tag.id as string],
+		});
+
+		const result = await adapter.getTag(tag.id);
+
+		expect(result).not.toBeNull();
+		// safeJsonParse must have stripped __proto__ so Object.prototype is clean
+		expect((Object.prototype as Record<string, unknown>)["poisoned"]).toBeUndefined();
 	});
 });
