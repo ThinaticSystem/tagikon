@@ -13,9 +13,11 @@ import type {
 } from "@tagikon/core";
 
 import {
+	StorageAdapterAlreadyInitializedError,
+	StorageAdapterNotInitializedError,
+	TagNotFoundError,
 	countObjectQueryInMemory,
 	evaluateObjectQueryInMemory,
-	TagNotFoundError,
 } from "@tagikon/core";
 
 export class MapStorageAdapter<
@@ -38,17 +40,14 @@ export class MapStorageAdapter<
 
 	initialize(tagShape: TagShape<TTag>): StorageAdapter<TTag> {
 		if (this.#_idProvider !== null)
-			// FIXME: Error class should extend TagikonError
-			throw new Error("MapStorageAdapter: initialize must only be called once.");
+			throw new StorageAdapterAlreadyInitializedError("MapStorageAdapter");
 		this.#_idProvider = tagShape.id as IdProvider<IdOf<TTag>>;
 		// In-memory storage needs no per-property codecs; tagShape other than id is intentionally ignored.
 		return this;
 	}
 
 	get #idProvider(): IdProvider<IdOf<TTag>> {
-		if (!this.#_idProvider)
-			// FIXME: Error class should extend TagikonError
-			throw new Error("MapStorageAdapter: initialize must be called before any operation.");
+		if (!this.#_idProvider) throw new StorageAdapterNotInitializedError("MapStorageAdapter");
 		return this.#_idProvider;
 	}
 

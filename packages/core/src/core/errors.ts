@@ -4,6 +4,8 @@ export class TagikonError extends Error {}
 
 export class ExtensionError extends TagikonError {}
 
+export class StorageAdapterError extends TagikonError {}
+
 export class IllegalExtensionDefinitionError extends ExtensionError {}
 
 export class NamespaceNotFoundError extends IllegalExtensionDefinitionError {
@@ -55,5 +57,25 @@ export class RequiredPropertyMissingError extends TagikonError {
 	constructor(propertyName: string) {
 		super(`Required tag property "${propertyName}" is missing`);
 		this.propertyName = propertyName;
+	}
+}
+
+export class StorageAdapterAlreadyInitializedError extends StorageAdapterError {
+	readonly name = "StorageAdapterAlreadyInitializedError";
+	readonly adapterName: string;
+
+	constructor(adapterName: string) {
+		super(`${adapterName}: initialize must only be called once.`);
+		this.adapterName = adapterName;
+	}
+}
+
+export class StorageAdapterNotInitializedError extends StorageAdapterError {
+	readonly name = "StorageAdapterNotInitializedError";
+	readonly adapterName: string;
+
+	constructor(adapterName: string) {
+		super(`${adapterName}: initialize must be called before any operation.`);
+		this.adapterName = adapterName;
 	}
 }

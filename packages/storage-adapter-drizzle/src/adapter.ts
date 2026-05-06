@@ -15,7 +15,12 @@ import type {
 } from "@tagikon/core";
 import type { SQL } from "drizzle-orm";
 
-import { TagNotFoundError } from "@tagikon/core";
+import {
+	StorageAdapterAlreadyInitializedError,
+	StorageAdapterNotInitializedError,
+	TagNotFoundError,
+	safeJsonParse,
+} from "@tagikon/core";
 import { and, eq, inArray } from "drizzle-orm";
 
 import { compileCountObjects, compileFindObjects } from "./query-compiler.ts";
@@ -46,16 +51,6 @@ const resolveExtensionKey = (extensionId: symbol): string => {
 	return description;
 };
 
-/** Keys that could be used in prototype-pollution attacks; strip them from DB-sourced JSON. */
-const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-const safeJsonParse = <TResult extends Record<string, unknown>>(raw: string): TResult => {
-	const parsed = JSON.parse(raw) as Record<string, unknown>;
-	return Object.fromEntries(
-		Object.entries(parsed).filter(([key]) => !DANGEROUS_KEYS.has(key)),
-	) as TResult;
-};
-
 export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAdapterSetup<TTag> {
 	readonly #db: DrizzleClient;
 	readonly #schema: TagikonSchema;
@@ -74,17 +69,14 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 
 	initialize(tagShape: TagShape<TTag>): StorageAdapter<TTag> {
 		if (this.#_idProvider !== null)
-			// FIXME: Error class should extend TagikonError
-			throw new Error("DrizzleStorageAdapter: initialize must only be called once.");
+			throw new StorageAdapterAlreadyInitializedError("DrizzleStorageAdapter");
 		this.#_idProvider = tagShape.id as IdProvider<IdOf<TTag>>;
 		this.#tagCodec = tagShape;
 		return this;
 	}
 
 	get #idProvider(): IdProvider<IdOf<TTag>> {
-		if (!this.#_idProvider)
-			// FIXME: Error class should extend TagikonError
-			throw new Error("DrizzleStorageAdapter: initialize must be called before any operation.");
+		if (!this.#_idProvider) throw new StorageAdapterNotInitializedError("DrizzleStorageAdapter");
 		return this.#_idProvider;
 	}
 

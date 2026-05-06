@@ -1,5 +1,7 @@
 import type { IdOf, Tag } from "../../core/tag.ts";
 
+import { safeJsonParseValue } from "./safe-json.ts";
+
 export type JsonPrimitive = string | number | boolean | null;
 
 export interface TagPropertyCodec<TValue, TStored extends JsonPrimitive = JsonPrimitive> {
@@ -120,6 +122,6 @@ export const tpc = {
 	json: <TValue>(): TpcResult<TValue, string> =>
 		makeCodec(
 			(v) => JSON.stringify(v),
-			(v) => JSON.parse(v) as TValue,
+			(v) => safeJsonParseValue(v) as TValue,
 		),
 } satisfies Record<string, () => TagPropertyCodec<any, any>>;
