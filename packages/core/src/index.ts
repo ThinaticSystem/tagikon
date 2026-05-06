@@ -3,6 +3,7 @@ export {
 	IllegalExtensionDefinitionError,
 	NamespaceNotFoundError,
 	ObjectNotTaggedError,
+	RequiredPropertyMissingError,
 	TagAlreadyExistsError,
 	TagNotFoundError,
 	TagikonError,
@@ -41,10 +42,11 @@ export { use } from "./plugin/extension/use.ts";
 export type { ExtensionRegistration, UseOptions } from "./plugin/extension/use.ts";
 export type { IdProvider } from "./plugin/id-provider/types.ts";
 export type { AuxStore } from "./plugin/storage-adapter/aux-store.ts";
-export { tpc } from "./plugin/storage-adapter/codec.ts";
+export { makeCodec, tpc } from "./plugin/storage-adapter/codec.ts";
 export type {
 	AuxCodec,
 	JsonPrimitive,
+	OptionalTagPropertyCodec,
 	TagFromShape,
 	TagPropertyCodec,
 	TagShape,

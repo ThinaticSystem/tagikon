@@ -61,6 +61,7 @@ suite("createDefaultAttributes", () => {
 			let count = 0;
 			const storage = new MapStorageAdapter<TagWithMeta>();
 			const extension = createDefaultAttributes<TagWithMeta>({
+				label: () => "default-label",
 				priority: () => ++count,
 			});
 			const tagikon = setupTagikon({

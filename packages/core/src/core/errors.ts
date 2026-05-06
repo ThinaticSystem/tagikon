@@ -47,3 +47,13 @@ export class ObjectNotTaggedError<TId = unknown> extends TagikonError {
 		this.objectKey = objectKey;
 	}
 }
+
+export class RequiredPropertyMissingError extends TagikonError {
+	readonly name = "RequiredPropertyMissingError";
+	readonly propertyName: string;
+
+	constructor(propertyName: string) {
+		super(`Required tag property "${propertyName}" is missing`);
+		this.propertyName = propertyName;
+	}
+}

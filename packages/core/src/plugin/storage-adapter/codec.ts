@@ -7,6 +7,19 @@ export interface TagPropertyCodec<TValue, TStored extends JsonPrimitive = JsonPr
 	readonly deserialize: (raw: TStored) => TValue;
 }
 
+/**
+ * A {@link TagPropertyCodec} variant that marks the property as optional in the tag shape.
+ * Use {@link tpc} factory methods with `.optional()` chaining to create instances.
+ * When placed in a tag shape, `TagFromShape` will produce an optional property (`?: TValue`).
+ */
+export interface OptionalTagPropertyCodec<
+	TValue,
+	TStored extends JsonPrimitive = JsonPrimitive,
+> extends TagPropertyCodec<TValue, TStored> {
+	readonly _optional: true;
+	readonly optional: () => OptionalTagPropertyCodec<TValue, TStored>;
+}
+
 export interface AuxCodec<TData> {
 	readonly serialize: (data: TData) => string;
 	readonly deserialize: (raw: string) => TData;
@@ -21,13 +34,15 @@ type IdProviderShape<TId> = TagPropertyCodec<TId, string> & {
 export type TagShape<TTag extends Tag> = {
 	readonly id: IdProviderShape<IdOf<TTag>>;
 } & {
-	// biome-ignore lint/suspicious/noExplicitAny: TStored can be any JsonPrimitive subtype (e.g. string for tpc.bigint())
-	readonly [TKey in keyof Omit<TTag, "id">]?: TagPropertyCodec<Omit<TTag, "id">[TKey], any>;
+	// NonNullable<...> strips undefined from optional TTag properties (their indexed-access type includes undefined).
+	readonly [TKey in keyof Omit<TTag, "id">]?: TagPropertyCodec<
+		NonNullable<Omit<TTag, "id">[TKey]>,
+		any
+	>;
 };
 
 // Loose constraint for TagFromShape — 'any' in serialize is required so that concrete
 // IdProvider<X> types (e.g. IdProvider<Uuid>) satisfy the constraint despite contravariance.
-// biome-ignore lint/suspicious/noExplicitAny: necessary to accept any concrete IdProvider<X>
 type AnyTagShapeConstraint = {
 	readonly id: {
 		readonly generate: () => unknown;
@@ -36,39 +51,75 @@ type AnyTagShapeConstraint = {
 	};
 };
 
+/** IdProvider-shaped entries → TId from generate(); codec-shaped entries → TValue from serialize(). */
+type InferShapeEntryValue<TEntry> = TEntry extends {
+	readonly generate: () => infer TId;
+	readonly serialize: (value: any) => string;
+}
+	? TId
+	: TEntry extends { readonly serialize: (value: infer TValue) => JsonPrimitive }
+		? TValue
+		: never;
+
+// `id` is extracted separately so TypeScript can prove `TagFromShape<TShape> extends Tag` at the
+// constraint site — a plain intersection of two mapped types hides `id` from the checker.
 export type TagFromShape<TShape extends AnyTagShapeConstraint> = {
-	// IdProvider-shaped entries (have 'generate') → infer the id type from generate's return.
-	// Codec-shaped entries (have 'serialize' but no 'generate') → infer the value type.
-	readonly [TKey in keyof TShape]: TShape[TKey] extends {
-		readonly generate: () => infer TId;
-		// biome-ignore lint/suspicious/noExplicitAny: matches any concrete IdProvider serialize
-		readonly serialize: (value: any) => string;
-	}
-		? TId
-		: TShape[TKey] extends { readonly serialize: (value: infer TValue) => JsonPrimitive }
-			? TValue
-			: never;
+	readonly id: InferShapeEntryValue<TShape["id"]>;
+} & {
+	// Non-id, non-optional codec entries → required properties.
+	readonly [TKey in Exclude<keyof TShape, "id"> as TShape[TKey] extends { readonly _optional: true }
+		? never
+		: TKey]: InferShapeEntryValue<TShape[TKey]>;
+} & {
+	// Non-id optional codec entries (_optional: true) → optional properties.
+	readonly [TKey in Exclude<keyof TShape, "id"> as TShape[TKey] extends { readonly _optional: true }
+		? TKey
+		: never]?: InferShapeEntryValue<TShape[TKey]>;
+};
+
+// Internal type for values returned by tpc factory methods — TagPropertyCodec extended with
+// an optional() chain that produces an OptionalTagPropertyCodec.
+type TpcResult<TValue, TStored extends JsonPrimitive> = TagPropertyCodec<TValue, TStored> & {
+	readonly optional: () => OptionalTagPropertyCodec<TValue, TStored>;
+};
+
+export const makeCodec = <TValue, TStored extends JsonPrimitive>(
+	serialize: (value: TValue) => TStored,
+	deserialize: (raw: TStored) => TValue,
+): TpcResult<TValue, TStored> => {
+	const optionalCodec: OptionalTagPropertyCodec<TValue, TStored> = {
+		serialize,
+		deserialize,
+		_optional: true,
+		optional: () => optionalCodec,
+	};
+	return { serialize, deserialize, optional: () => optionalCodec };
 };
 
 export const tpc = {
-	string: (): TagPropertyCodec<string, string> => ({
-		serialize: (v) => v,
-		deserialize: (v) => v,
-	}),
-	number: (): TagPropertyCodec<number, number> => ({
-		serialize: (v) => v,
-		deserialize: (v) => v,
-	}),
-	boolean: (): TagPropertyCodec<boolean, boolean> => ({
-		serialize: (v) => v,
-		deserialize: (v) => v,
-	}),
-	bigint: (): TagPropertyCodec<bigint, string> => ({
-		serialize: (v) => String(v),
-		deserialize: (v) => BigInt(v),
-	}),
-	json: <TValue>(): TagPropertyCodec<TValue, string> => ({
-		serialize: (v) => JSON.stringify(v),
-		deserialize: (v) => JSON.parse(v) as TValue,
-	}),
+	string: (): TpcResult<string, string> =>
+		makeCodec(
+			(v) => v,
+			(v) => v,
+		),
+	number: (): TpcResult<number, number> =>
+		makeCodec(
+			(v) => v,
+			(v) => v,
+		),
+	boolean: (): TpcResult<boolean, boolean> =>
+		makeCodec(
+			(v) => v,
+			(v) => v,
+		),
+	bigint: (): TpcResult<bigint, string> =>
+		makeCodec(
+			(v) => String(v),
+			(v) => BigInt(v),
+		),
+	json: <TValue>(): TpcResult<TValue, string> =>
+		makeCodec(
+			(v) => JSON.stringify(v),
+			(v) => JSON.parse(v) as TValue,
+		),
 } satisfies Record<string, () => TagPropertyCodec<any, any>>;

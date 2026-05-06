@@ -13,6 +13,7 @@ import type { StorageAdapter } from "./plugin/storage-adapter/types.ts";
 import type { FindObjectsOptions, ObjectQuery } from "./query/types.ts";
 import type { Permission } from "./security/permission.ts";
 
+import { RequiredPropertyMissingError } from "./core/errors.ts";
 import { collectHooks, runPipeline } from "./hook/runner.ts";
 import { createExtensionContext } from "./plugin/extension/context.ts";
 import { PermissionDeniedError } from "./security/permission.ts";
@@ -32,7 +33,6 @@ export interface CoreApi<TTag extends Tag> {
 // Internal constraint for tagShape.id — avoids importing IdProvider.
 // 'any' in serialize is required: concrete IdProvider<X> is contravariant in X,
 // so (id: Uuid)=>string is NOT assignable to (id: unknown)=>string.
-// biome-ignore lint/suspicious/noExplicitAny: necessary to accept any concrete IdProvider<X>
 type AnyIdProvider = {
 	readonly generate: () => unknown;
 	readonly serialize: (id: any) => string;
@@ -154,6 +154,17 @@ export const setupTagikon = <
 	storageAdapter.setIdProvider(tagShape.id as Parameters<typeof storageAdapter.setIdProvider>[0]);
 	storageAdapter.setTagCodec?.(tagShape as unknown as TagShape<TagFromShape<TShape>>);
 
+	// Build the set of required (non-optional) property names from the shape for runtime validation.
+	const requiredProperties = new Set(
+		Object.entries(tagShape)
+			.values()
+			.filter(
+				([key, entry]) =>
+					!(typeof entry === "object" && entry !== null && "_optional" in entry) && key !== "id",
+			)
+			.map(([key]) => key),
+	);
+
 	const storageView = wrapStorageForExtensions(storageAdapter);
 
 	let anonymousSequence = 0;
@@ -240,9 +251,15 @@ export const setupTagikon = <
 
 	const coreApi: CoreApi<TTag> = {
 		async addTag(attributes) {
-			return runPipeline(addTagHooks, attributes, (data) =>
-				storageAdapter.createTag(data as Omit<TTag, "id">),
-			) as Promise<TTag>;
+			return runPipeline(addTagHooks, attributes, (data) => {
+				// Validate after all transform hooks so extensions (e.g. default-attributes) can fill in
+				// required properties before this check fires.
+				const attrs = data as Record<string, unknown>;
+				for (const prop of requiredProperties) {
+					if (!(prop in attrs)) throw new RequiredPropertyMissingError(prop);
+				}
+				return storageAdapter.createTag(data as Omit<TTag, "id">);
+			}) as Promise<TTag>;
 		},
 		async listTags() {
 			return runPipeline(listTagsHooks, {}, () => storageAdapter.listTags()) as Promise<TTag[]>;

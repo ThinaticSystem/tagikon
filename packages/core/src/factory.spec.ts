@@ -8,7 +8,7 @@ import { uuid, UUID_ID_PROVIDER } from "@tagikon/id-provider-uuid";
 import { MapStorageAdapter } from "@tagikon/storage-adapter-in-memory-map";
 import { expect, suite, test, vi } from "vitest";
 
-import { TagNotFoundError } from "./core/errors.ts";
+import { RequiredPropertyMissingError, TagNotFoundError } from "./core/errors.ts";
 import { objectKey } from "./core/ids.ts";
 import { setupTagikon } from "./factory.ts";
 import { use } from "./plugin/extension/use.ts";
@@ -421,6 +421,54 @@ suite("setupTagikon", () => {
 			});
 			const tag = await tagikon.addTag({ description: "hello" });
 			expect(tag.description).toBe("hello");
+		});
+	});
+
+	suite("optional properties", () => {
+		interface TagWithOptDesc extends Tag<Uuid> {
+			readonly label: string;
+			readonly description?: string;
+		}
+
+		/** `description` is optional */
+		const makeTagikonWithOptional = () => {
+			const storage = new MapStorageAdapter<TagWithOptDesc>();
+			const tagikon = setupTagikon({
+				tagShape: {
+					id: UUID_ID_PROVIDER,
+					label: tpc.string(),
+					description: tpc.string().optional(),
+				},
+				storageAdapter: storage,
+			});
+			return tagikon;
+		};
+
+		test("optional property can be omitted in addTag", async () => {
+			const tagikon = makeTagikonWithOptional();
+			const tag = await tagikon.addTag({ label: "no-desc" });
+			expect(tag.label).toBe("no-desc");
+			expect(tag.description).toBeUndefined();
+		});
+
+		test("optional property is stored and retrieved when provided", async () => {
+			const tagikon = makeTagikonWithOptional();
+			const tag = await tagikon.addTag({ label: "with-desc", description: "hello" });
+			expect(tag.description).toBe("hello");
+		});
+
+		test("throws RequiredPropertyMissingError when required property is absent at runtime", async () => {
+			const tagikon = makeTagikonWithOptional();
+			await expect(tagikon.addTag({} as unknown as { label: string })).rejects.toBeInstanceOf(
+				RequiredPropertyMissingError,
+			);
+		});
+
+		test("RequiredPropertyMissingError carries the missing property name", async () => {
+			const tagikon = makeTagikonWithOptional();
+			await expect(tagikon.addTag({} as unknown as { label: string })).rejects.toSatisfy(
+				(e: unknown) => e instanceof RequiredPropertyMissingError && e.propertyName === "label",
+			);
 		});
 	});
 
