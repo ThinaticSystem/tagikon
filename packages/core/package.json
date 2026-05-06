@@ -19,6 +19,9 @@
 	"scripts": {
 		"build": "tsdown"
 	},
+	"dependencies": {
+		"@tagikon/utils": "workspace:*"
+	},
 	"devDependencies": {
 		"@tagikon/tsconfig": "workspace:*"
 	}

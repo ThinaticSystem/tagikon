@@ -1,6 +1,6 @@
 import type { IdOf, Tag } from "../../core/tag.ts";
 
-import { safeJsonParseValue } from "./safe-json.ts";
+import { safeJsonParseValue } from "@tagikon/utils";
 
 /**
  * The set of primitive shapes a tag property can be serialized to.\

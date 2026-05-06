@@ -10,6 +10,7 @@
 		"paths": {
 			"@tagikon/core": ["../core/src/index.ts"],
 			"@tagikon/core/testing": ["../core/src/plugin/storage-adapter/testing.ts"],
+			"@tagikon/utils": ["../utils/src/index.ts"],
 			"@tagikon/id-provider-string": ["../id-provider-string/src/index.ts"],
 			"@tagikon/id-provider-uuid": ["../id-provider-uuid/src/index.ts"]
 		}

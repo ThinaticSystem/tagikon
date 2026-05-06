@@ -53,6 +53,10 @@ importers:
         version: 3.21.2
 
   packages/core:
+    dependencies:
+      '@tagikon/utils':
+        specifier: workspace:*
+        version: link:../utils
     devDependencies:
       '@tagikon/tsconfig':
         specifier: workspace:*
@@ -116,6 +120,9 @@ importers:
       '@tagikon/core':
         specifier: workspace:*
         version: link:../core
+      '@tagikon/utils':
+        specifier: workspace:*
+        version: link:../utils
     devDependencies:
       '@libsql/client':
         specifier: ^0.17.3
@@ -141,6 +148,12 @@ importers:
         version: link:../tsconfig
 
   packages/tsconfig: {}
+
+  packages/utils:
+    devDependencies:
+      '@tagikon/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
 packages:
 

@@ -8,7 +8,4 @@ export default defineConfig({
 		level: "error",
 		profile: "esm-only",
 	},
-	deps: {
-		neverBundle: ["@tagikon/core", "@tagikon/utils", "drizzle-orm"],
-	},
 });

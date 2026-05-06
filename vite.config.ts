@@ -49,6 +49,10 @@ export default defineConfig({
 				find: "@tagikon/extension-hierarchy",
 				replacement: resolve(rootDir, "packages/extension-hierarchy/src/index.ts"),
 			},
+			{
+				find: "@tagikon/utils",
+				replacement: resolve(rootDir, "packages/utils/src/index.ts"),
+			},
 		],
 	},
 	test: {

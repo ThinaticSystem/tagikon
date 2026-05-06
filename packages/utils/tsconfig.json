@@ -1,0 +1,11 @@
+{
+	"extends": "@tagikon/tsconfig/base.json",
+	"include": ["src/**/*.ts"],
+	"compilerOptions": {
+		"noEmit": true,
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"lib": ["esnext"],
+		"types": ["node"]
+	}
+}

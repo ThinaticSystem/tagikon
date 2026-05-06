@@ -1,5 +1,5 @@
 {
-	"name": "@tagikon/storage-adapter-drizzle",
+	"name": "@tagikon/utils",
 	"version": "0.1.0",
 	"files": [
 		"built"
@@ -19,17 +19,7 @@
 	"scripts": {
 		"build": "tsdown"
 	},
-	"dependencies": {
-		"@tagikon/core": "workspace:*",
-		"@tagikon/utils": "workspace:*"
-	},
 	"devDependencies": {
-		"@libsql/client": "^0.17.3",
-		"@tagikon/id-provider-uuid": "workspace:*",
-		"@tagikon/tsconfig": "workspace:*",
-		"drizzle-orm": "^0.45.2"
-	},
-	"peerDependencies": {
-		"drizzle-orm": ">=0.36.0"
+		"@tagikon/tsconfig": "workspace:*"
 	}
 }

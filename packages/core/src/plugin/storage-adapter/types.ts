@@ -131,7 +131,7 @@ export interface StorageAdapter<TTag extends Tag = Tag> {
 	 *
 	 * @param auxCodec - Optional codec for serializing/deserializing values.\
 	 *   If omitted, the adapter falls back to its default (typically JSON
-	 *   parsed via {@link safeJsonParse} for prototype-pollution safety).
+	 *   parsed via `safeJsonParse` from `@tagikon/utils` for prototype-pollution safety).
 	 */
 	getAuxStore<TData = unknown>(
 		extensionId: symbol,

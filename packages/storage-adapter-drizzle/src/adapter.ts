@@ -19,8 +19,8 @@ import {
 	StorageAdapterAlreadyInitializedError,
 	StorageAdapterNotInitializedError,
 	TagNotFoundError,
-	safeJsonParse,
 } from "@tagikon/core";
+import { safeJsonParse } from "@tagikon/utils";
 import { and, eq, inArray } from "drizzle-orm";
 
 import { compileCountObjects, compileFindObjects } from "./query-compiler.ts";

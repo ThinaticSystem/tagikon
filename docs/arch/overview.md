@@ -68,17 +68,18 @@ sequenceDiagram
 
 ## モノレポ構成
 
-| パッケージ                               | 役割                                            |
-| ---------------------------------------- | ----------------------------------------------- |
-| `@tagikon/core`                          | コア API・Hook Runner・クエリ言語・型定義       |
-| `@tagikon/id-provider-string`            | 文字列 ID プロバイダー                          |
-| `@tagikon/id-provider-uuid`              | UUID ID プロバイダー                            |
-| `@tagikon/storage-adapter-in-memory-map` | インメモリ参照実装                              |
-| `@tagikon/storage-adapter-drizzle`       | Drizzle ORM 経由の SQLite/PostgreSQL アダプター |
-| `@tagikon/extension-soft-delete`         | 論理削除タグ                                    |
-| `@tagikon/extension-default-attributes`  | addTag 時の属性デフォルト補完                   |
-| `@tagikon/extension-hierarchy`           | タグ階層（ツリー）                              |
-| `@tagikon/codec-effect-schema`           | Effect Schema からの TagPropertyCodec ブリッジ  |
+| パッケージ                               | 役割                                                   |
+| ---------------------------------------- | ------------------------------------------------------ |
+| `@tagikon/core`                          | コア API・Hook Runner・クエリ言語・型定義              |
+| `@tagikon/utils`                         | 汎用ユーティリティ（memoize・safeJsonParse・Set 演算） |
+| `@tagikon/id-provider-string`            | 文字列 ID プロバイダー                                 |
+| `@tagikon/id-provider-uuid`              | UUID ID プロバイダー                                   |
+| `@tagikon/storage-adapter-in-memory-map` | インメモリ参照実装                                     |
+| `@tagikon/storage-adapter-drizzle`       | Drizzle ORM 経由の SQLite/PostgreSQL アダプター        |
+| `@tagikon/extension-soft-delete`         | 論理削除タグ                                           |
+| `@tagikon/extension-default-attributes`  | addTag 時の属性デフォルト補完                          |
+| `@tagikon/extension-hierarchy`           | タグ階層（ツリー）                                     |
+| `@tagikon/codec-effect-schema`           | Effect Schema からの TagPropertyCodec ブリッジ         |
 
 各パッケージの詳細は `packages/<pkg>/docs/arch/overview.md`（フェーズ5で作成）を参照。
 

@@ -53,7 +53,6 @@ export type {
 	TagPropertyCodec,
 	TagShape,
 } from "./plugin/storage-adapter/codec.ts";
-export { safeJsonParse, safeJsonParseValue } from "./plugin/storage-adapter/safe-json.ts";
 export type { StorageAdapter, StorageAdapterSetup } from "./plugin/storage-adapter/types.ts";
 export {
 	and,

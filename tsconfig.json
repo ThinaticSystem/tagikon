@@ -1,6 +1,7 @@
 {
 	"files": [],
 	"references": [
+		{ "path": "./packages/utils" },
 		{ "path": "./packages/core" },
 		{ "path": "./packages/id-provider-string" },
 		{ "path": "./packages/id-provider-uuid" },

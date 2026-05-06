@@ -8,17 +8,12 @@ import type {
 	TagSelector,
 } from "./types.ts";
 
+import { intersectSets, memoize, unionSets } from "@tagikon/utils";
+
 interface EvaluatorStorage<TTag extends Tag> {
 	listTags: () => Promise<TTag[]>;
 	listTagObjects: (tagId: IdOf<TTag>) => Promise<ObjectKey[]>;
 }
-
-// TODO: Move to a utilities directory
-const INITIAL = Symbol("INITIAL");
-const memoize = <TValue>(fn: () => TValue): (() => TValue) => {
-	let cached: typeof INITIAL | TValue = INITIAL;
-	return () => (cached === INITIAL ? (cached = fn()) : cached);
-};
 
 const evaluateTagPropertyPredicate = (
 	tagValue: unknown,
@@ -57,25 +52,6 @@ const evaluateTagPredicate = (tag: object, predicate: TagPredicate): boolean => 
 		case "not":
 			return !evaluateTagPredicate(tag, predicate.predicate);
 	}
-};
-
-const intersectSets = <TElement>(sets: ReadonlySet<TElement>[]): Set<TElement> => {
-	const [first, ...rest] = sets;
-	const result = new Set(first);
-	for (const set of rest) {
-		for (const element of result) {
-			if (!set.has(element)) result.delete(element);
-		}
-	}
-	return result;
-};
-
-const unionSets = <TElement>(sets: ReadonlySet<TElement>[]): Set<TElement> => {
-	const result = new Set<TElement>();
-	for (const set of sets) {
-		for (const element of set) result.add(element);
-	}
-	return result;
 };
 
 /**

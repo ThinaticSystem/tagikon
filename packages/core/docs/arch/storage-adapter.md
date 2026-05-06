@@ -87,7 +87,7 @@ interface AuxStore<TKey, TData> {
 
 `findObjects` / `countObjects` は必須実装。SQL 等にコンパイルできない adapter は core の `evaluateObjectQueryInMemory` / `countObjectQueryInMemory` に delegate する（`storage-adapter-in-memory-map` がこの形）。
 
-`getAuxStore(extensionId)` は同じ `extensionId` symbol で複数回呼んでも同一の `AuxStore` インスタンスを返すこと。`auxCodec` を渡すと adapter がそれを使ってシリアライズする（省略時は JSON、`safeJsonParse` でプロトタイプ汚染防御）。
+`getAuxStore(extensionId)` は同じ `extensionId` symbol で複数回呼んでも同一の `AuxStore` インスタンスを返すこと。`auxCodec` を渡すと adapter がそれを使ってシリアライズする（省略時は JSON、`@tagikon/utils` の `safeJsonParse` でプロトタイプ汚染防御）。
 
 ## コントラクトテスト
 

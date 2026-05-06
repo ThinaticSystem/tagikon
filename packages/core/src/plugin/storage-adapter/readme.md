@@ -7,15 +7,16 @@ tags: [core, storage-adapter, codec, plugin]
 
 # `core/src/plugin/storage-adapter`
 
-StorageAdapter 契約・AuxStore・Codec・JSON safe parse・コントラクトテストユーティリティを置く。
+StorageAdapter 契約・AuxStore・Codec・コントラクトテストユーティリティを置く。
 
 ## 責務
 
 - `StorageAdapter` / `StorageAdapterSetup` のライフサイクル分離型契約
 - `AuxStore` の KV 契約
 - `TagPropertyCodec` / `OptionalTagPropertyCodec` / `tpc` 組み込みコーデック / `TagShape` / `TagFromShape` / `AuxCodec`
-- `safeJsonParse` / `safeJsonParseValue` プロトタイプ汚染対策 JSON パーサー
 - Adapter 実装の共通テストスイート (`@tagikon/core/testing` 経由で利用)
+
+プロトタイプ汚染対策 JSON パーサー（`safeJsonParse` / `safeJsonParseValue`）は `@tagikon/utils` に移動済み。
 
 ## ファイル一覧
 
@@ -24,7 +25,6 @@ StorageAdapter 契約・AuxStore・Codec・JSON safe parse・コントラクト�
 | [types.ts](types.ts)         | `StorageAdapter<TTag>` / `StorageAdapterSetup<TTag>` インターフェース               |
 | [aux-store.ts](aux-store.ts) | `AuxStore<TKey, TData>` インターフェース                                            |
 | [codec.ts](codec.ts)         | `TagPropertyCodec` / `tpc` / `makeCodec` / `TagShape` / `TagFromShape` / `AuxCodec` |
-| [safe-json.ts](safe-json.ts) | `safeJsonParse` / `safeJsonParseValue`                                              |
 | [testing.ts](testing.ts)     | `runStorageAdapterTests` 共通テストスイート (`@tagikon/core/testing`)               |
 
 ## 関連ドキュメント
