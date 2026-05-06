@@ -200,6 +200,8 @@ packages/
     src/index.ts                 # createDefaultAttributes
   extension-hierarchy/           # @tagikon/extension-hierarchy
     src/index.ts                 # createHierarchy
+  codec-effect-schema/           # @tagikon/codec-effect-schema
+    src/index.ts                 # fromEffectSchema
   tsconfig/                      # @tagikon/tsconfig（共有 tsconfig ベース）
     base.json                    # 全パッケージが extends する tsconfig ベース
 ```
@@ -535,6 +537,8 @@ pnpm check         # CI相当の全チェック
 | `packages/core/src/core/errors.ts`（更新）                  | `RequiredPropertyMissingError` 追加 — `{ propertyName: string }`。必須プロパティが `addTag` 呼び出し時（transform フック後）に存在しない場合にスローされる。                                                                                                                                                                                                                                                                                       |
 | `packages/core/src/factory.ts`（更新）                      | `setupTagikon` が `tagShape` から必須プロパティ名を収集し、`addTag` の transform フック実行後（`createTag` 呼び出し直前）にランタイムバリデーションを実施。`createDefaultAttributes` など transform フックでプロパティを補完する拡張との互換性を維持。                                                                                                                                                                                             |
 | `packages/core/src/plugin/storage-adapter/codec.spec.ts`    | `tpc.xxx().optional()` の動作テスト（serialize / deserialize / `_optional: true` / 冪等性）および `TagFromShape` 型推論テスト（必須 / オプショナルプロパティの分類）。                                                                                                                                                                                                                                                                             |
+| `packages/codec-effect-schema/src/index.ts`                 | `fromEffectSchema<TValue, TStored>(schema: Schema<TValue, TStored, never>)` — Effect Schema（`effect/Schema`）から `TagPropertyCodec` を生成するブリッジ関数。`encodeSync` を serialize・`decodeUnknownSync` を deserialize として使用。`makeCodec` 経由で `.optional()` チェーンを継承。`effect` >= 3.0.0 を peer dep として要求。                                                                                                                |
+| `packages/codec-effect-schema/src/index.spec.ts`            | `fromEffectSchema` ユニットテスト（`Schema.String` identity / `Schema.NumberFromString` encode-decode / `minLength` バリデーション / `.optional()` チェーン / 型推論）                                                                                                                                                                                                                                                                             |
 
 ### 未実装（次に着手）
 

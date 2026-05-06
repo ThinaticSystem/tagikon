@@ -28,6 +28,7 @@ export default defineConfig({
 				"packages/extension-soft-delete/src/index.ts",
 			),
 			"@tagikon/extension-hierarchy": resolve(rootDir, "packages/extension-hierarchy/src/index.ts"),
+			"@tagikon/codec-effect-schema": resolve(rootDir, "packages/codec-effect-schema/src/index.ts"),
 		},
 	},
 	test: {
