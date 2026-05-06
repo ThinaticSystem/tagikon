@@ -51,6 +51,49 @@ const resolveExtensionKey = (extensionId: symbol): string => {
 	return description;
 };
 
+/**
+ * Drizzle-ORM-backed implementation of {@link StorageAdapterSetup}.\
+ * Persists tags, relations, and per-extension auxiliary data to SQLite or
+ * PostgreSQL through Drizzle.
+ *
+ * Constructor accepts a Drizzle client and a schema produced by
+ * {@link createTagikonSqliteSchema} or {@link createTagikonPostgresqlSchema}.
+ * The dialect is taken from the schema, so the same adapter class works
+ * for both backends.
+ *
+ * Implementation notes:
+ *
+ * - JSON columns are parsed via `safeJsonParse` / `safeJsonParseValue`
+ *   from `@tagikon/core` to defend against `__proto__` prototype pollution.
+ * - Per-property codecs are honored on read and write.
+ * - `findObjects` / `countObjects` are compiled to SQL via internal
+ *   `compileFindObjects` / `compileCountObjects` helpers, with set
+ *   operators (`INTERSECT` / `UNION` / `EXCEPT`) used for query
+ *   composition. `tagsWhere` predicates use dialect-aware JSON access
+ *   (`json_extract` on SQLite, `::jsonb ->>` on PostgreSQL).
+ * - `getAuxStore(extensionId)` requires `extensionId.description` to be
+ *   set so the symbol can be persisted as a string column.
+ *
+ * @example
+ * ```ts
+ * import { drizzle } from "drizzle-orm/better-sqlite3";
+ * import Database from "better-sqlite3";
+ * import { setupTagikon, tpc } from "@tagikon/core";
+ * import { UUID_ID_PROVIDER } from "@tagikon/id-provider-uuid";
+ * import {
+ *   DrizzleStorageAdapter,
+ *   createTagikonSqliteSchema,
+ * } from "@tagikon/storage-adapter-drizzle";
+ *
+ * const db = drizzle(new Database("tags.db"));
+ * const schema = createTagikonSqliteSchema();
+ *
+ * const tagikon = setupTagikon({
+ *   tagShape: { id: UUID_ID_PROVIDER, name: tpc.string() },
+ *   storageAdapter: new DrizzleStorageAdapter(db, schema),
+ * });
+ * ```
+ */
 export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAdapterSetup<TTag> {
 	readonly #db: DrizzleClient;
 	readonly #schema: TagikonSchema;

@@ -15,6 +15,34 @@ export interface UseOptions {
 	readonly permissions: readonly Permission[];
 }
 
+/**
+ * Registers an extension for inclusion in a Tagikon instance or as a
+ * child of another extension.\
+ * The result is an {@link ExtensionRegistration} — pass it to
+ * {@link setupTagikon}'s `extensions` field or to a parent extension's
+ * `extensions` field.
+ *
+ * The user must explicitly acknowledge the permissions declared by the
+ * extension. Mismatches raise {@link PermissionMismatchError} at
+ * registration time so authorization issues are surfaced eagerly.
+ *
+ * @throws {@link NamespaceNotFoundError} if the extension has API methods
+ *   but no `namespace` symbol.
+ * @throws {@link PermissionMismatchError} if `options.permissions` does
+ *   not exactly match the extension's declared permissions.
+ *
+ * @example
+ * ```ts
+ * import { use } from "@tagikon/core";
+ * import { createHierarchy } from "@tagikon/extension-hierarchy";
+ *
+ * const hierarchy = use(createHierarchy(), {
+ *   permissions: ["tag:read", "tag:write"],
+ * });
+ *
+ * const tagikon = setupTagikon({ tagShape, storageAdapter, extensions: [hierarchy] });
+ * ```
+ */
 export const use = <
 	TTag extends Tag,
 	TNamespace extends symbol = never,

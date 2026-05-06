@@ -6,12 +6,37 @@ import {
 } from "drizzle-orm/pg-core";
 import { index, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
+/**
+ * Options for {@link createTagikonSqliteSchema}.
+ */
 export interface CreateTagikonSqliteSchemaOptions {
-	/** Table name prefix for the schema. Useful to avoid conflicts when sharing a database. Default is "tagikon". */
+	/**
+	 * Prefix prepended to every table name (`<prefix>_tags`,
+	 * `<prefix>_relations`, `<prefix>_aux`). Override when sharing a
+	 * database with other schemas to avoid collisions.
+	 *
+	 * @default "tagikon"
+	 */
 	tablePrefix?: string;
 }
 
 //#region SQLite schema
+/**
+ * Builds the Drizzle table definitions for a SQLite-backed Tagikon store.\
+ * The returned object can be passed to {@link DrizzleStorageAdapter} and
+ * exposes `tags`, `relations`, `aux`, and `dialect: "sqlite"`.
+ *
+ * @example
+ * ```ts
+ * import { drizzle } from "drizzle-orm/better-sqlite3";
+ * import Database from "better-sqlite3";
+ * import { createTagikonSqliteSchema, DrizzleStorageAdapter } from "@tagikon/storage-adapter-drizzle";
+ *
+ * const schema = createTagikonSqliteSchema();
+ * const db = drizzle(new Database("tags.db"));
+ * const adapter = new DrizzleStorageAdapter(db, schema);
+ * ```
+ */
 export const createTagikonSqliteSchema = ({
 	tablePrefix = "tagikon",
 }: CreateTagikonSqliteSchemaOptions = {}) => {
@@ -48,10 +73,25 @@ export type TagikonSqliteSchema = ReturnType<typeof createTagikonSqliteSchema>;
 //#endregion
 
 //#region PostgreSQL schema
+/**
+ * Options for {@link createTagikonPostgresqlSchema}.
+ */
 export interface CreateTagikonPostgresqlSchemaOptions {
-	/** Table name prefix for the schema. Useful to avoid conflicts when sharing a database. Default is "tagikon". */
+	/**
+	 * Prefix prepended to every table name. See
+	 * {@link CreateTagikonSqliteSchemaOptions.tablePrefix}.
+	 *
+	 * @default "tagikon"
+	 */
 	tablePrefix?: string;
 }
+
+/**
+ * Builds the Drizzle table definitions for a PostgreSQL-backed Tagikon store.\
+ * Returned object exposes the same `tags` / `relations` / `aux` tables as
+ * the SQLite schema but with `dialect: "postgres"` so the adapter can pick
+ * dialect-aware JSON access (`::jsonb ->>`).
+ */
 export const createTagikonPostgresqlSchema = ({
 	tablePrefix = "tagikon",
 }: CreateTagikonPostgresqlSchemaOptions = {}) => {

@@ -7,43 +7,64 @@ import type { AuxCodec } from "../storage-adapter/codec.ts";
 import type { ExtensionContext } from "./context.ts";
 
 //#region Hook input / output type aliases per operation
+
+/** Input passed to `addTag` hooks — every shape property except `id`. */
 export type AddTagInput<TTag extends Tag> = Omit<TTag, "id">;
 
+/** Input passed to `editTag` hooks — the target `id` plus a partial patch. */
 export type EditTagInput<TTag extends Tag> = {
 	id: IdOf<TTag>;
 	patch: Partial<Omit<TTag, "id">>;
 };
 
+/** Input passed to `removeTag` hooks — the target `id`. */
 export type RemoveTagInput<TTag extends Tag> = { id: IdOf<TTag> };
 
+/** Input passed to `tagObjects` hooks. */
 export type TagObjectsInput<TTag extends Tag> = {
 	tagId: IdOf<TTag>;
 	objectKeys: readonly ObjectKey[];
 };
 
+/** Input passed to `untagObjects` hooks. */
 export type UntagObjectsInput<TTag extends Tag> = {
 	tagId: IdOf<TTag>;
 	objectKeys: readonly ObjectKey[];
 };
 
+/** Input passed to `resetWithTags` hooks. */
 export type ResetWithTagsInput<TTag extends Tag> = {
 	objectKey: ObjectKey;
 	tagIds: readonly IdOf<TTag>[];
 };
 
+/**
+ * Input passed to `listTags` hooks.\
+ * `listTags` takes no arguments, but a placeholder is needed so the hook
+ * type can use the standard `(ctx, input) => ...` signature.
+ */
 export type ListTagsInput = Record<never, never>;
 
+/** Input passed to `findObjects` hooks. */
 export type FindObjectsInput<TTag extends Tag> = {
 	query: ObjectQuery<IdOf<TTag>>;
 	options: FindObjectsOptions | undefined;
 };
 
+/** Input passed to `countObjects` hooks. */
 export type CountObjectsInput<TTag extends Tag> = {
 	query: ObjectQuery<IdOf<TTag>>;
 };
 //#endregion
 
 //#region Custom API
+
+/**
+ * Shape of an extension's custom API surface — a record of arbitrary
+ * methods. Each method's first argument is later wrapped with
+ * `ctx: ExtensionContext` by the runtime, so the `ApiShape` types
+ * describe the **public** surface (without `ctx`).
+ */
 export type ApiShape = Record<string, (...args: any[]) => unknown>;
 
 /**
@@ -56,8 +77,14 @@ type ApiImplementation<TCtx, TApi extends ApiShape> = {
 };
 // #endregion
 
-// Stored in Extension.extensions. Per-extension generics (TAux, TChildrenApi) are
-// erased here because the parent's view of a child only needs its custom API shape.
+/**
+ * A registered extension entry — the value produced by `use()`.\
+ * Stored in `Extension.extensions` and in the root registration array
+ * passed to `setupTagikon`.
+ *
+ * Per-extension auxiliary generics are erased here because the parent's
+ * view of a child only needs its custom API shape.
+ */
 export interface ExtensionRegistration<
 	TNamespace extends symbol = never,
 	TApi extends ApiShape = {},
@@ -98,6 +125,26 @@ export type ChildrenApiOf<
 // #endregion
 
 //#region Extension interface
+/**
+ * The pluggable unit that observes and modifies tag operations.\
+ * Build one with {@link createExtension} and register it via {@link use}.
+ *
+ * An extension can:
+ *
+ * - **Observe / mutate operations** through `hooks` (see {@link HookPhases}).
+ * - **Expose custom methods** through `api`, optionally namespaced via
+ *   the `namespace` symbol.
+ * - **Compose other extensions** as children through `extensions`.
+ *
+ * @typeParam TTag - The tag type the extension operates on.
+ * @typeParam TNamespace - Unique symbol used to expose `api` on the parent
+ *   (or on the root Tagikon object). `never` means no public API.
+ * @typeParam TApi - Shape of the custom API exposed under `namespace`.
+ * @typeParam TAux - Type of the per-extension auxiliary data (`ctx.aux`).
+ * @typeParam TChildrenApi - Map of `{ [childNamespace]: childApiShape }`,
+ *   used to type `ctx.api` for children. Use {@link ChildrenApiOf} to
+ *   compute this from a children array automatically.
+ */
 export interface Extension<
 	TTag extends Tag,
 	TNamespace extends symbol = never,

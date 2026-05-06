@@ -18,15 +18,97 @@ import { collectHooks, runPipeline } from "./hook/runner.ts";
 import { createExtensionContext } from "./plugin/extension/context.ts";
 import { PermissionDeniedError } from "./security/permission.ts";
 
+/**
+ * The set of operations exposed on the object returned by {@link setupTagikon}.\
+ * Extensions registered at the root are exposed alongside this surface
+ * under their declared namespace symbol.
+ *
+ * @typeParam TTag - The concrete tag type, derived from the shape passed
+ *   to {@link setupTagikon}.
+ */
 export interface CoreApi<TTag extends Tag> {
+	/**
+	 * Creates a tag. The `id` is supplied by the configured `IdProvider` —\
+	 * pass every other shape property here. Extensions can supply or
+	 * override values via transform hooks before persistence.
+	 *
+	 * @throws {@link RequiredPropertyMissingError} if a required property
+	 *   is still absent after the transform-hook phase.
+	 *
+	 * @example
+	 * ```ts
+	 * const urgent = await tagikon.addTag({ name: "urgent" });
+	 * ```
+	 */
 	addTag(attributes: Omit<TTag, "id">): Promise<TTag>;
+
+	/**
+	 * Returns every tag in storage as a flat list.\
+	 * Hierarchical structure is not exposed by core — use
+	 * `extension-hierarchy` for tree traversal.
+	 */
 	listTags(): Promise<TTag[]>;
+
+	/**
+	 * Patches a tag in place.
+	 *
+	 * @throws {@link TagNotFoundError} if no tag with `id` exists.
+	 */
 	editTag(id: IdOf<TTag>, patch: Partial<Omit<TTag, "id">>): Promise<TTag>;
+
+	/**
+	 * Deletes a tag.
+	 *
+	 * @returns `true` if a tag was deleted, `false` if no tag with `id`
+	 *   existed (no-op).
+	 */
 	deleteTag(id: IdOf<TTag>): Promise<boolean>;
+
+	/**
+	 * Attaches `tagId` to multiple objects at once.\
+	 * Idempotent — relations that already exist are left as-is.
+	 *
+	 * @throws {@link TagNotFoundError} if no tag with `tagId` exists.
+	 */
 	tagObjects(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void>;
+
+	/**
+	 * Removes `tagId` from multiple objects at once.\
+	 * Missing relations are silently ignored.
+	 */
 	untagObjects(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void>;
+
+	/**
+	 * Replaces the full set of tags on `objectKey` with `tagIds`.\
+	 * The diff against the current set is computed automatically:
+	 * tags not in `tagIds` are removed, tags not currently attached are added.
+	 */
 	resetWithTags(objectKey: ObjectKey, tagIds: readonly IdOf<TTag>[]): Promise<void>;
+
+	/**
+	 * Finds object keys matching `query`. Results are sorted lexicographically
+	 * so that `limit`/`offset` pagination is deterministic.
+	 *
+	 * @param options - `limit` caps the number of results; `offset` skips that
+	 *   many results before returning. Both default to no-limit / no-skip.
+	 *
+	 * @example All objects with either tag
+	 * ```ts
+	 * const keys = await tagikon.findObjects(taggedWithAny(tagsById([a, b])));
+	 * ```
+	 *
+	 * @example Pagination
+	 * ```ts
+	 * const page2 = await tagikon.findObjects(query, { limit: 50, offset: 50 });
+	 * ```
+	 */
 	findObjects(query: ObjectQuery<IdOf<TTag>>, options?: FindObjectsOptions): Promise<ObjectKey[]>;
+
+	/**
+	 * Counts object keys matching `query`. Equivalent to the cardinality of
+	 * {@link CoreApi.findObjects} without `limit`/`offset` but typically much
+	 * cheaper because adapters can compile it to a `COUNT(*)`.
+	 */
 	countObjects(query: ObjectQuery<IdOf<TTag>>): Promise<number>;
 }
 
@@ -139,6 +221,42 @@ interface ExtensionBinding {
 	readonly boundApi: BoundApi;
 }
 
+/**
+ * Creates a Tagikon instance from a tag shape, storage adapter, and a set
+ * of root-level extensions. The returned object exposes {@link CoreApi}
+ * plus each root extension's API under its declared namespace symbol.
+ *
+ * The tag shape's `id` field must be an {@link IdProvider}; every other
+ * field is a {@link TagPropertyCodec} (use {@link tpc} for built-ins).\
+ * The concrete tag type is inferred from the shape — no explicit type
+ * argument is needed in most cases.
+ *
+ * @example Minimal setup
+ * ```ts
+ * import { setupTagikon, tpc } from "@tagikon/core";
+ * import { UUID_ID_PROVIDER } from "@tagikon/id-provider-uuid";
+ * import { MapStorageAdapter } from "@tagikon/storage-adapter-in-memory-map";
+ *
+ * const tagikon = setupTagikon({
+ *   tagShape: { id: UUID_ID_PROVIDER, name: tpc.string() },
+ *   storageAdapter: new MapStorageAdapter(),
+ * });
+ * ```
+ *
+ * @example With extensions
+ * ```ts
+ * import { use } from "@tagikon/core";
+ * import { createHierarchy, HIERARCHY_NS } from "@tagikon/extension-hierarchy";
+ *
+ * const tagikon = setupTagikon({
+ *   tagShape,
+ *   storageAdapter,
+ *   extensions: [use(createHierarchy(), { permissions: ["tag:read", "tag:write"] })],
+ * });
+ *
+ * await tagikon[HIERARCHY_NS].moveTag(child, parent);
+ * ```
+ */
 export const setupTagikon = <
 	TShape extends AnyTagShape,
 	TRegistrations extends readonly ExtensionRegistration<symbol, ApiShape>[] = readonly [],

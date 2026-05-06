@@ -20,6 +20,36 @@ import {
 	evaluateObjectQueryInMemory,
 } from "@tagikon/core";
 
+/**
+ * In-memory `Map`-backed implementation of {@link StorageAdapterSetup}.\
+ * Suitable for tests, prototyping, and small in-process deployments.
+ *
+ * Implementation notes:
+ *
+ * - Tag CRUD and bidirectional relations are kept in plain `Map` /`Set`s.
+ * - `findObjects` / `countObjects` delegate to `evaluateObjectQueryInMemory`
+ *   / `countObjectQueryInMemory` from `@tagikon/core`, so behavior is
+ *   guaranteed to match the in-memory evaluator (the reference semantics).
+ * - Per-property codecs are ignored — values round-trip as-is.
+ * - Each `getAuxStore(extensionId)` call returns the same `AuxStore`
+ *   instance for a given symbol, but data persists only as long as the
+ *   adapter is alive.
+ *
+ * Lifecycle: instantiate, call {@link MapStorageAdapter.initialize} once
+ * (typically by passing the adapter to `setupTagikon`), then use freely.
+ *
+ * @example
+ * ```ts
+ * import { setupTagikon, tpc } from "@tagikon/core";
+ * import { UUID_ID_PROVIDER } from "@tagikon/id-provider-uuid";
+ * import { MapStorageAdapter } from "@tagikon/storage-adapter-in-memory-map";
+ *
+ * const tagikon = setupTagikon({
+ *   tagShape: { id: UUID_ID_PROVIDER, name: tpc.string() },
+ *   storageAdapter: new MapStorageAdapter(),
+ * });
+ * ```
+ */
 export class MapStorageAdapter<
 	TTag extends Tag = Tag<unknown>,
 > implements StorageAdapterSetup<TTag> {
