@@ -9,7 +9,7 @@ import type {
 	ExtensionRegistration,
 } from "./plugin/extension/types.ts";
 import type { TagFromShape, TagShape } from "./plugin/storage-adapter/codec.ts";
-import type { StorageAdapter } from "./plugin/storage-adapter/types.ts";
+import type { StorageAdapter, StorageAdapterSetup } from "./plugin/storage-adapter/types.ts";
 import type { FindObjectsOptions, ObjectQuery } from "./query/types.ts";
 import type { Permission } from "./security/permission.ts";
 
@@ -45,7 +45,7 @@ export interface SetupTagikonOptions<
 	TRegistrations extends readonly ExtensionRegistration<symbol, ApiShape>[] = readonly [],
 > {
 	tagShape: TShape;
-	storageAdapter: StorageAdapter<TagFromShape<TShape>>;
+	storageAdapter: StorageAdapterSetup<TagFromShape<TShape>>;
 	/**
 	 * Extensions registered at the root. Each entry is exposed on the returned
 	 * Tagikon object under its namespace symbol; their descendants stay private.
@@ -151,8 +151,9 @@ export const setupTagikon = <
 		extensions: rootRegistrations = [] as unknown as TRegistrations,
 	} = options;
 
-	storageAdapter.setIdProvider(tagShape.id as Parameters<typeof storageAdapter.setIdProvider>[0]);
-	storageAdapter.setTagCodec?.(tagShape as unknown as TagShape<TagFromShape<TShape>>);
+	const initializedAdapter = storageAdapter.initialize(
+		tagShape as unknown as TagShape<TagFromShape<TShape>>,
+	);
 
 	// Build the set of required (non-optional) property names from the shape for runtime validation.
 	const requiredProperties = new Set(
@@ -165,7 +166,7 @@ export const setupTagikon = <
 			.map(([key]) => key),
 	);
 
-	const storageView = wrapStorageForExtensions(storageAdapter);
+	const storageView = wrapStorageForExtensions(initializedAdapter);
 
 	let anonymousSequence = 0;
 	const allocateSymbolFor = (ext: AnyExtension<TagFromShape<TShape>>): symbol =>
@@ -190,9 +191,9 @@ export const setupTagikon = <
 		}
 
 		const extensionSymbol = allocateSymbolFor(ext);
-		const aux = storageAdapter.getAuxStore(
+		const aux = initializedAdapter.getAuxStore(
 			extensionSymbol,
-			ext.auxCodec as Parameters<typeof storageAdapter.getAuxStore>[1],
+			ext.auxCodec as Parameters<typeof initializedAdapter.getAuxStore>[1],
 		);
 		const guardedView = createPermissionGuardedView(storageView, permissions);
 		const ctx = createExtensionContext<TagFromShape<TShape>, unknown, Record<symbol, BoundApi>>(
@@ -258,21 +259,21 @@ export const setupTagikon = <
 				for (const prop of requiredProperties) {
 					if (!(prop in attrs)) throw new RequiredPropertyMissingError(prop);
 				}
-				return storageAdapter.createTag(data as Omit<TTag, "id">);
+				return initializedAdapter.createTag(data as Omit<TTag, "id">);
 			}) as Promise<TTag>;
 		},
 		async listTags() {
-			return runPipeline(listTagsHooks, {}, () => storageAdapter.listTags()) as Promise<TTag[]>;
+			return runPipeline(listTagsHooks, {}, () => initializedAdapter.listTags()) as Promise<TTag[]>;
 		},
 		async editTag(id, patch) {
 			return runPipeline(editTagHooks, { id, patch }, (input) => {
 				const typed = input as { id: IdOf<TTag>; patch: Partial<Omit<TTag, "id">> };
-				return storageAdapter.updateTag(typed.id, typed.patch);
+				return initializedAdapter.updateTag(typed.id, typed.patch);
 			}) as Promise<TTag>;
 		},
 		async deleteTag(id) {
 			return runPipeline(removeTagHooks, { id }, (input) =>
-				storageAdapter.deleteTag((input as { id: IdOf<TTag> }).id),
+				initializedAdapter.deleteTag((input as { id: IdOf<TTag> }).id),
 			) as Promise<boolean>;
 		},
 		async tagObjects(tagId, objectKeys) {
@@ -281,7 +282,7 @@ export const setupTagikon = <
 					tagId: IdOf<TTag>;
 					objectKeys: readonly ObjectKey[];
 				};
-				return storageAdapter.addRelations(typed.tagId, typed.objectKeys);
+				return initializedAdapter.addRelations(typed.tagId, typed.objectKeys);
 			});
 		},
 		async untagObjects(tagId, objectKeys) {
@@ -290,7 +291,7 @@ export const setupTagikon = <
 					tagId: IdOf<TTag>;
 					objectKeys: readonly ObjectKey[];
 				};
-				return storageAdapter.removeRelations(typed.tagId, typed.objectKeys);
+				return initializedAdapter.removeRelations(typed.tagId, typed.objectKeys);
 			});
 		},
 		async resetWithTags(objectKey, tagIds) {
@@ -299,13 +300,14 @@ export const setupTagikon = <
 					objectKey: ObjectKey;
 					tagIds: readonly IdOf<TTag>[];
 				};
-				const currentIds = await storageAdapter.listObjectTags(typed.objectKey);
+				const currentIds = await initializedAdapter.listObjectTags(typed.objectKey);
 				const newSet = new Set<IdOf<TTag>>(typed.tagIds);
 				const currentSet = new Set<IdOf<TTag>>(currentIds);
 				const toAdd = typed.tagIds.values().filter((id) => !currentSet.has(id));
 				const toRemove = currentIds.values().filter((id) => !newSet.has(id));
-				for (const tid of toAdd) await storageAdapter.addRelations(tid, [typed.objectKey]);
-				for (const tid of toRemove) await storageAdapter.removeRelations(tid, [typed.objectKey]);
+				for (const tid of toAdd) await initializedAdapter.addRelations(tid, [typed.objectKey]);
+				for (const tid of toRemove)
+					await initializedAdapter.removeRelations(tid, [typed.objectKey]);
 			});
 		},
 		async findObjects(query, options) {
@@ -314,13 +316,13 @@ export const setupTagikon = <
 					query: ObjectQuery<IdOf<TTag>>;
 					options: FindObjectsOptions | undefined;
 				};
-				return storageAdapter.findObjects(typed.query, typed.options);
+				return initializedAdapter.findObjects(typed.query, typed.options);
 			}) as Promise<ObjectKey[]>;
 		},
 		async countObjects(query) {
 			return runPipeline(countObjectsHooks, { query }, (input) => {
 				const typed = input as { query: ObjectQuery<IdOf<TTag>> };
-				return storageAdapter.countObjects(typed.query);
+				return initializedAdapter.countObjects(typed.query);
 			}) as Promise<number>;
 		},
 	};

@@ -9,6 +9,7 @@ import type {
 	ObjectKey,
 	ObjectQuery,
 	StorageAdapter,
+	StorageAdapterSetup,
 	Tag,
 	TagShape,
 } from "@tagikon/core";
@@ -55,7 +56,7 @@ const safeJsonParse = <TResult extends Record<string, unknown>>(raw: string): TR
 	) as TResult;
 };
 
-export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAdapter<TTag> {
+export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAdapterSetup<TTag> {
 	readonly #db: DrizzleClient;
 	readonly #schema: TagikonSchema;
 	/**
@@ -71,18 +72,19 @@ export class DrizzleStorageAdapter<TTag extends Tag = Tag> implements StorageAda
 		this.#schema = schema;
 	}
 
-	setIdProvider(provider: IdProvider<IdOf<TTag>>): void {
-		this.#_idProvider = provider;
-	}
-
-	setTagCodec(codec: TagShape<TTag>): void {
-		this.#tagCodec = codec;
+	initialize(tagShape: TagShape<TTag>): StorageAdapter<TTag> {
+		if (this.#_idProvider !== null)
+			// FIXME: Error class should extend TagikonError
+			throw new Error("DrizzleStorageAdapter: initialize must only be called once.");
+		this.#_idProvider = tagShape.id as IdProvider<IdOf<TTag>>;
+		this.#tagCodec = tagShape;
+		return this;
 	}
 
 	get #idProvider(): IdProvider<IdOf<TTag>> {
 		if (!this.#_idProvider)
-			// FIXME: Error class should extends TagikonError
-			throw new Error("DrizzleStorageAdapter: setIdProvider must be called before any operation.");
+			// FIXME: Error class should extend TagikonError
+			throw new Error("DrizzleStorageAdapter: initialize must be called before any operation.");
 		return this.#_idProvider;
 	}
 

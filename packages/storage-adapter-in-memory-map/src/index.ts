@@ -7,6 +7,7 @@ import type {
 	ObjectKey,
 	ObjectQuery,
 	StorageAdapter,
+	StorageAdapterSetup,
 	Tag,
 	TagShape,
 } from "@tagikon/core";
@@ -17,7 +18,9 @@ import {
 	TagNotFoundError,
 } from "@tagikon/core";
 
-export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements StorageAdapter<TTag> {
+export class MapStorageAdapter<
+	TTag extends Tag = Tag<unknown>,
+> implements StorageAdapterSetup<TTag> {
 	// Store tags keyed by their serialized id string for uniform lookup.
 	readonly #tags = new Map<string, TTag>();
 	// tagId string → Set of objectKey strings
@@ -33,17 +36,19 @@ export class MapStorageAdapter<TTag extends Tag = Tag<unknown>> implements Stora
 	 */
 	#_idProvider: IdProvider<IdOf<TTag>> | null = null;
 
-	setIdProvider(provider: IdProvider<IdOf<TTag>>): void {
-		this.#_idProvider = provider;
+	initialize(tagShape: TagShape<TTag>): StorageAdapter<TTag> {
+		if (this.#_idProvider !== null)
+			// FIXME: Error class should extend TagikonError
+			throw new Error("MapStorageAdapter: initialize must only be called once.");
+		this.#_idProvider = tagShape.id as IdProvider<IdOf<TTag>>;
+		// In-memory storage needs no per-property codecs; tagShape other than id is intentionally ignored.
+		return this;
 	}
-
-	// In-memory storage needs no serialization; setTagCodec is intentionally a no-op.
-	setTagCodec(_codec: TagShape<TTag>): void {}
 
 	get #idProvider(): IdProvider<IdOf<TTag>> {
 		if (!this.#_idProvider)
 			// FIXME: Error class should extend TagikonError
-			throw new Error("MapStorageAdapter: setIdProvider must be called before any operation.");
+			throw new Error("MapStorageAdapter: initialize must be called before any operation.");
 		return this.#_idProvider;
 	}
 

@@ -51,7 +51,7 @@ export type {
 	TagPropertyCodec,
 	TagShape,
 } from "./plugin/storage-adapter/codec.ts";
-export type { StorageAdapter } from "./plugin/storage-adapter/types.ts";
+export type { StorageAdapter, StorageAdapterSetup } from "./plugin/storage-adapter/types.ts";
 export {
 	and,
 	complementTags,

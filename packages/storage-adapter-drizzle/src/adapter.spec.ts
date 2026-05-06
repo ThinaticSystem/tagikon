@@ -44,9 +44,7 @@ const setupAdapter = async () => {
 
 	const db = drizzle(client);
 	const schema = createTagikonSqliteSchema();
-	const adapter = new DrizzleStorageAdapter<TagWithLabel>(db, schema);
-	adapter.setIdProvider(UUID_ID_PROVIDER);
-	return adapter;
+	return new DrizzleStorageAdapter<TagWithLabel>(db, schema).initialize({ id: UUID_ID_PROVIDER });
 };
 
 suite("DrizzleStorageAdapter", () => {
@@ -396,7 +394,7 @@ suite("DrizzleStorageAdapter", () => {
 	});
 
 	suite("integration", () => {
-		let adapter: DrizzleStorageAdapter<TagWithLabel>;
+		let adapter: Awaited<ReturnType<typeof setupAdapter>>;
 
 		beforeEach(async () => {
 			adapter = await setupAdapter();
@@ -510,8 +508,7 @@ suite("DrizzleStorageAdapter", () => {
 			const numAdapter = new DrizzleStorageAdapter<TagWithScore>(
 				drizzle(client),
 				createTagikonSqliteSchema(),
-			);
-			numAdapter.setIdProvider(UUID_ID_PROVIDER);
+			).initialize({ id: UUID_ID_PROVIDER });
 
 			const t1 = await numAdapter.createTag({ score: 1 });
 			const t5 = await numAdapter.createTag({ score: 5 });
@@ -679,13 +676,13 @@ suite("DrizzleStorageAdapter - codec round-trips", () => {
 			"CREATE TABLE tagikon_aux (extension_key TEXT NOT NULL, tag_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY (extension_key, tag_id))",
 		);
 		type TagWithAmount = Tag<Uuid> & { readonly amount: bigint };
-		const adapter = new DrizzleStorageAdapter<TagWithAmount>(
+		return new DrizzleStorageAdapter<TagWithAmount>(
 			drizzle(client),
 			createTagikonSqliteSchema(),
-		);
-		adapter.setIdProvider(UUID_ID_PROVIDER);
-		adapter.setTagCodec({ id: UUID_ID_PROVIDER, amount: tpc.bigint() });
-		return adapter;
+		).initialize({
+			id: UUID_ID_PROVIDER,
+			amount: tpc.bigint(),
+		});
 	};
 
 	test("bigint tag property survives createTag → getTag round-trip", async () => {
@@ -747,8 +744,7 @@ suite("DrizzleStorageAdapter - codec round-trips", () => {
 		const adapter = new DrizzleStorageAdapter<TagWithLabel>(
 			drizzle(client),
 			createTagikonSqliteSchema(),
-		);
-		adapter.setIdProvider(UUID_ID_PROVIDER);
+		).initialize({ id: UUID_ID_PROVIDER });
 
 		const EXT = Symbol("custom-codec-ext");
 		const store = adapter.getAuxStore<{ count: number }>(EXT, {
@@ -777,8 +773,9 @@ suite("DrizzleStorageAdapter – prototype pollution safety", () => {
 		);
 		const db = drizzle(client);
 		const schema = createTagikonSqliteSchema();
-		const adapter = new DrizzleStorageAdapter<TagWithLabel>(db, schema);
-		adapter.setIdProvider(UUID_ID_PROVIDER);
+		const adapter = new DrizzleStorageAdapter<TagWithLabel>(db, schema).initialize({
+			id: UUID_ID_PROVIDER,
+		});
 
 		const tag = await adapter.createTag({ label: "safe" });
 

@@ -1,23 +1,27 @@
 import type { ObjectKey } from "../../core/ids.ts";
 import type { IdOf, Tag } from "../../core/tag.ts";
 import type { FindObjectsOptions, ObjectQuery } from "../../query/types.ts";
-import type { IdProvider } from "../id-provider/types.ts";
 import type { AuxStore } from "./aux-store.ts";
 import type { AuxCodec, TagShape } from "./codec.ts";
 
+/**
+ * Pre-initialization interface for a storage adapter.
+ *
+ * This is the type accepted by `setupTagikon`. After calling `initialize`,
+ * the adapter transitions to {@link StorageAdapter} and data operations become available.
+ */
+export interface StorageAdapterSetup<TTag extends Tag = Tag> {
+	/**
+	 * Initialize the adapter with the tag shape, providing both the ID provider
+	 * (via `tagShape.id`) and per-property codecs for serialization.\
+	 * Must be called exactly once before any data operation.
+	 *
+	 * @returns The initialized adapter ready for data operations.
+	 */
+	initialize(tagShape: TagShape<TTag>): StorageAdapter<TTag>;
+}
+
 export interface StorageAdapter<TTag extends Tag = Tag> {
-	/**
-	 * Called by `setupTagikon` to provide the ID provider extracted from `tagShape.id`.
-	 * Must be called before any other method.
-	 */
-	setIdProvider(provider: IdProvider<IdOf<TTag>>): void;
-
-	/**
-	 * Optional. Called by `setupTagikon` to provide per-property codecs from `tagShape`.
-	 * Adapters that do not need serialization (e.g., in-memory) may ignore this.
-	 */
-	setTagCodec?(codec: TagShape<TTag>): void;
-
 	createTag(data: Omit<TTag, "id">): Promise<TTag>;
 	getTag(id: IdOf<TTag>): Promise<null | TTag>;
 	listTags(): Promise<TTag[]>;

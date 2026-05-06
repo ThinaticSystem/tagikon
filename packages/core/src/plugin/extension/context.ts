@@ -3,13 +3,10 @@ import type { AuxStore } from "../storage-adapter/aux-store.ts";
 import type { StorageAdapter } from "../storage-adapter/types.ts";
 
 /**
- * Storage view exposed to extensions. Hides adapter-setup methods and `getAuxStore`
- * so extensions cannot reach into other extensions' AuxStores or reconfigure the adapter.
+ * Storage view exposed to extensions. Hides `getAuxStore`
+ * so extensions cannot reach into other extensions' AuxStores.
  */
-export type ExtensionStorageView<TTag extends Tag> = Omit<
-	StorageAdapter<TTag>,
-	"getAuxStore" | "setIdProvider" | "setTagCodec"
->;
+export type ExtensionStorageView<TTag extends Tag> = Omit<StorageAdapter<TTag>, "getAuxStore">;
 
 export interface ExtensionContext<
 	TTag extends Tag,

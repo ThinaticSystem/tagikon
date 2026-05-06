@@ -136,8 +136,9 @@ suite("createSoftDelete", () => {
 
 suite("tag property queries with evaluateObjectQueryInMemory", () => {
 	test("tagsWhere: finds objects tagged with tags matching the property value", async () => {
-		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>();
-		storage.setIdProvider(UUID_ID_PROVIDER);
+		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>().initialize({
+			id: UUID_ID_PROVIDER,
+		});
 
 		const active = await storage.createTag({ isDeleted: false });
 		const deleted = await storage.createTag({ isDeleted: true });
@@ -155,8 +156,9 @@ suite("tag property queries with evaluateObjectQueryInMemory", () => {
 	});
 
 	test("not(tagsWhere): excludes objects tagged with matching tags", async () => {
-		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>();
-		storage.setIdProvider(UUID_ID_PROVIDER);
+		const storage = new MapStorageAdapter<TagWithSoftDelete<Uuid>>().initialize({
+			id: UUID_ID_PROVIDER,
+		});
 
 		const active = await storage.createTag({ isDeleted: false });
 		const deleted = await storage.createTag({ isDeleted: true });
