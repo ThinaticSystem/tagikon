@@ -547,6 +547,80 @@ pnpm check         # CI相当の全チェック
 
 優先度は下記の順。
 
+1. **パッケージのメンテナンス** — 各種パッケージが適切な設定となっているかを確認し、不備があれば修正
+
+   以下を漏れなく調査  
+    全てのパッケージについて調査項目を満たしているかの表を作成し、完了したものからチェックを入れていく。  
+    例外がある場合はその理由を記載する。
+   - パッケージ間でビルド (`tsconfig.json`, `tsdown.config.ts`) やテスト（`vitest.config.ts`）、パッケージ設定（`package.json`）の揺れがないか
+
+   また、今後の調査用にこの調査を実施するSKILLを作成
+
+1. **ドキュメントの整理**
+   - TypeDocでのドキュメントを人間が読んで理解しやすい構成や内容にすること
+   - ClaudeなどのLLMが効率よく（context windowを無駄に消費せずに、かつ必要な資料はしっかりポインタが張られており参照漏れを起こさない）理解できるようなドキュメントを作成すること
+
+   を実現するべく、主に以下の2点を実施する。他にもドキュメントに関する改善点があればこの機会にまとめて実施する。これは特定のドキュメントファイルの更新に留まるような**タスク**ではなく、人間とLLMにとってドキュメントが理解しやすい状態を作るための包括的な「超重要プロジェクト」であるの！
+   - **CLAUDE.mdメンテナンスSKILLの作成** — CLAUDE.mdは一部実装から乖離した記述がみられるため、実態に即した記述となるよう整理するSKILLを作成する。
+
+     内容はClaudeの best practice に従う
+
+     また、新たに `docs/arch/overview.md` ファイルを作成し、ライブラリ全体構成の概要（レイヤー構造・モジュール構成・データフローなど）をまとめる  
+      なお、各パッケージの詳細については各パッケージの `docs/arch/overview.md` に記載する方針とする  
+      関数、クラス、変数の仕様や意図などのコメントはJSDocでコードに直接記載する方針とし、モジュールそのものの説明やディレクトリやディレクトリ内のファイルの責務などコードからは読み取れない情報はディレクトリ内の `readme.md` に記載する方針とする
+     Front Matterを設け、タグやキーワードで分類できるようにする（例: `layer: core` / `type: architecture` など）。  
+      また、レイヤー構造やモジュール構成やデータフローを説明する際はMermaidを積極的に活用する（ascii artは禁止）
+
+     併せて、実行時点でのソースの内容をこれらのファイルへ反映するSKILLも作成する
+
+     CLAUDE.mdの内容がかなり肥大化してきているため、内容をSKILLやglobal document（`docs/**/*.md`）やディレクトリ毎の `readme.md` に分散させ、CLAUDE.mdはあくまでセッションの進行管理とタスク管理に特化させることも併せて行う
+
+   - **TypeDocへの追加ドキュメントの記載**
+
+     以下はTypeDocのドキュメントに記載されていた内容の抜粋である。この内容に沿い、TypeDocのドキュメントに追加情報を添付する。
+
+     ```md
+     Project Documents
+     If your project has multiple entry points, the @document tag cannot be used to place documents at the top level of the project as there is no comment location associated with the project. For this use case, specify the projectDocuments option. This option can be specified multiple times, or a glob may be specified to include multiple documents.
+
+     // typedoc.json
+     {
+     "projectDocuments": ["documents/*.md"]
+     }
+     TypeDoc's default sorting options will cause project documents to be re-ordered alphabetically. If not desired, sorting for entry points can be disabled with the sortEntryPoints option.
+
+     Document Content
+     Documents may include a yaml frontmatter section which can be used to control some details about the document. Note: The frontmatter must begin and end with --- on lines by itself. TypeDoc's frontmatter extraction uses this to determine when the block ends.
+
+     ---
+
+     title: External Markdown
+     group: Documents
+     category: Guides
+     children: - ./child.md - ./child2.md
+
+     ---
+
+     The title key specifies the document name, which will be used in the sidebar navigation. The group and category keys are equivalent to the @groupand @category tags and control how the document shows up in the Index section on the page for the reflection which owns the document. The children key can be used to specify additional documents which should be added underneath the current document.
+
+     Documents may include relative links to images or other files/documents. TypeDoc will detect links within markdown [text](link) formatted links, <a> tags and <img> tags and automatically resolve them to other documents in the project.
+
+     if a path cannot be resolved to a part of the documentation, TypeDoc will copy the file found to a media folder in your generated documentation and update the link to point to it, so relative links to images will still work.
+
+     Documents may also include {@link} inline tags, which will be resolved as declaration references by TypeDoc.
+     ```
+
+   作業量が多くcontext windowを大量に消費する可能性があるため、1セッションでやることを制限する。以下は分割例:
+   - 必要なドキュメントの構成や内容を調査
+   - TODOリストの作成（CLAUDE.mdにも記載）
+   - ドキュメントの追加・修正（複数セッションに分割してもよい）
+   - ドキュメント追加・修正のSKILL作成
+   - TypeDocへ追加ドキュメントを添付する設定の実施
+   - CLAUDE.mdの整理（ドキュメント関連以外の内容は別セッションで整理）
+   - ドキュメントの内容をソースコードから反映するSKILLの作成
+
+   重要なことはSKILLの実行を行うことで持続的にドキュメントを最新の状態に保てるようにすること。
+
 1. **Utilityの凝集整理** — 各モジュールに散らばっているユーティリティ関数を、ユーティリティー用のnpmパッケージにまとめる。
 
    分割の基準はこのライブラリ固有の処理ではなくJavaScript/TypeScript製のソフトウェアなら適用し得る一般的な処理であること。
