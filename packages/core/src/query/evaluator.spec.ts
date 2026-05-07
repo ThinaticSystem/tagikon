@@ -13,6 +13,9 @@ import {
 	intersectTags,
 	not,
 	or,
+	predicateAnd,
+	predicateNot,
+	predicateOr,
 	propertyContains,
 	propertyEndsWith,
 	propertyEqual,
@@ -337,6 +340,109 @@ suite("evaluateObjectQueryInMemory", () => {
 			);
 			expect(result).toEqual([objectKey("obj2")]);
 		});
+
+		test("limit 0 returns empty array", async () => {
+			const { storage, tags } = await setupHas();
+			const result = await evaluateObjectQueryInMemory(
+				taggedWithAny(tagsById([tags.a.id])),
+				storage,
+				{ limit: 0 },
+			);
+			expect(result).toHaveLength(0);
+		});
+
+		test("offset beyond result count returns empty array", async () => {
+			const { storage, tags } = await setupHas();
+			const result = await evaluateObjectQueryInMemory(
+				taggedWithAny(tagsById([tags.a.id])),
+				storage,
+				{ offset: 100 },
+			);
+			expect(result).toHaveLength(0);
+		});
+	});
+
+	suite("tagsWhere with compound TagPredicate", () => {
+		test("predicateAnd: tag must satisfy both conditions", async () => {
+			const { storage } = await setupStringTags();
+			// starts-with "foo" AND ends-with "bar" → only "foobar" qualifies
+			const result = await evaluateObjectQueryInMemory(
+				taggedWithAny<Uuid>(
+					tagsWhere(
+						predicateAnd([propertyStartsWith("name", "foo"), propertyEndsWith("name", "bar")]),
+					),
+				),
+				storage,
+			);
+			// "foobar" tags obj2 and obj3
+			assertSameSet(result, [objectKey("obj2"), objectKey("obj3")]);
+		});
+
+		test("predicateOr: tag must satisfy at least one condition", async () => {
+			const { storage } = await setupStringTags();
+			// equal "foo" OR equal "bar" → "foo" and "bar" qualify
+			const result = await evaluateObjectQueryInMemory(
+				taggedWithAny<Uuid>(
+					tagsWhere(predicateOr([propertyEqual("name", "foo"), propertyEqual("name", "bar")])),
+				),
+				storage,
+			);
+			// "foo" → obj1, obj2; "bar" → obj3
+			assertSameSet(result, [objectKey("obj1"), objectKey("obj2"), objectKey("obj3")]);
+		});
+
+		test("predicateNot: tag must not satisfy the condition", async () => {
+			const { storage } = await setupStringTags();
+			// NOT starts-with "foo" → only "bar" qualifies
+			const result = await evaluateObjectQueryInMemory(
+				taggedWithAny<Uuid>(tagsWhere(predicateNot(propertyStartsWith("name", "foo")))),
+				storage,
+			);
+			// "bar" → obj3
+			assertSameSet(result, [objectKey("obj3")]);
+		});
+
+		test("predicateAnd with empty list matches every tag (vacuous truth)", async () => {
+			const { storage } = await setupHas();
+			// AND of zero conditions is vacuously true → all three tags qualify
+			const result = await evaluateObjectQueryInMemory(
+				taggedWithAny<Uuid>(tagsWhere(predicateAnd([]))),
+				storage,
+			);
+			assertSameSet(result, [objectKey("obj1"), objectKey("obj2"), objectKey("obj3")]);
+		});
+
+		test("predicateOr with empty list matches no tag (vacuous falsity)", async () => {
+			const { storage } = await setupHas();
+			// OR of zero conditions is vacuously false → no tags qualify
+			const result = await evaluateObjectQueryInMemory(
+				taggedWithAny<Uuid>(tagsWhere(predicateOr([]))),
+				storage,
+			);
+			expect(result).toHaveLength(0);
+		});
+	});
+});
+
+suite("evaluateObjectQueryInMemory — selector edge cases", () => {
+	test("intersectTags([]) returns empty, unlike predicateAnd([])", async () => {
+		const { storage } = await setupHas();
+		// intersectTags with no selectors is defined to return empty (not vacuous truth)
+		const result = await evaluateObjectQueryInMemory(
+			taggedWithAny<Uuid>(intersectTags([])),
+			storage,
+		);
+		expect(result).toHaveLength(0);
+	});
+
+	test("not(taggedWithAny(tagsById([]))) returns universe of all tagged objects", async () => {
+		const { storage } = await setupHas();
+		// tagsById([]) → empty tag set → taggedWithAny returns {} → not({}) = universe
+		const result = await evaluateObjectQueryInMemory(
+			not(taggedWithAny<Uuid>(tagsById([]))),
+			storage,
+		);
+		assertSameSet(result, [objectKey("obj1"), objectKey("obj2"), objectKey("obj3")]);
 	});
 });
 

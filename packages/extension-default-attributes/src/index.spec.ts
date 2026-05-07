@@ -14,6 +14,23 @@ interface TagWithMeta extends Tag<Uuid> {
 }
 
 suite("createDefaultAttributes", () => {
+	const makeTagikonWithDefaults = () => {
+		const storage = new MapStorageAdapter<TagWithMeta>();
+		const extension = createDefaultAttributes<TagWithMeta>({
+			label: () => "default-label",
+			priority: () => 0,
+		});
+		return setupTagikon({
+			tagShape: {
+				id: UUID_ID_PROVIDER,
+				label: tpc.string(),
+				priority: tpc.number(),
+			},
+			storageAdapter: storage,
+			extensions: [use(extension)],
+		});
+	};
+
 	suite("addTag", () => {
 		test("fills in attributes absent from input", async () => {
 			const storage = new MapStorageAdapter<TagWithMeta>();
@@ -99,6 +116,55 @@ suite("createDefaultAttributes", () => {
 			const tag = await tagikon.addTag({ label: "provided" } as Omit<TagWithMeta, "id">);
 			expect(tag.label).toBe("provided");
 			expect(tag.priority).toBe(5);
+		});
+	});
+
+	suite("editTag", () => {
+		test("does not apply defaults — only the patched fields change", async () => {
+			const tagikon = makeTagikonWithDefaults();
+
+			const tag = await tagikon.addTag({ label: "original", priority: 42 });
+			const updated = await tagikon.editTag(tag.id, { label: "updated" });
+
+			expect(updated.label).toBe("updated");
+			expect(updated.priority).toBe(42);
+		});
+	});
+
+	suite("addTag with falsy explicit values", () => {
+		const makeTagikonWithNonZeroDefault = () => {
+			const storage = new MapStorageAdapter<TagWithMeta>();
+			const extension = createDefaultAttributes<TagWithMeta>({
+				label: () => "default",
+				priority: () => 99,
+			});
+			return setupTagikon({
+				tagShape: {
+					id: UUID_ID_PROVIDER,
+					label: tpc.string(),
+					priority: tpc.number(),
+				},
+				storageAdapter: storage,
+				extensions: [use(extension)],
+			});
+		};
+
+		test.each([
+			{ label: "test", priority: 0 },
+			{ label: "test", priority: -1 },
+		])(
+			"numeric value $priority is not replaced by the default (99)",
+			async ({ label, priority }) => {
+				const tagikon = makeTagikonWithNonZeroDefault();
+				const tag = await tagikon.addTag({ label, priority });
+				expect(tag.priority).toBe(priority);
+			},
+		);
+
+		test("empty string is not replaced by the default", async () => {
+			const tagikon = makeTagikonWithNonZeroDefault();
+			const tag = await tagikon.addTag({ label: "", priority: 1 });
+			expect(tag.label).toBe("");
 		});
 	});
 });

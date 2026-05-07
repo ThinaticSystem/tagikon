@@ -2,12 +2,14 @@ import type { TagWithSoftDelete } from "./index.ts";
 import type { Uuid } from "@tagikon/id-provider-uuid";
 
 import {
+	TagNotFoundError,
 	evaluateObjectQueryInMemory,
 	not,
 	objectKey,
 	propertyEqual,
 	setupTagikon,
 	taggedWithAny,
+	tagsById,
 	tagsWhere,
 	tpc,
 	use,
@@ -82,6 +84,16 @@ suite("createSoftDelete", () => {
 			expect(tags).toHaveLength(1);
 			expect(tags[0]!.id).toBe(active.id);
 		});
+
+		test("returns empty array when all tags are soft-deleted", async () => {
+			const { server } = setup();
+			const t1 = await server.addTag({ isDeleted: false });
+			const t2 = await server.addTag({ isDeleted: false });
+			await server[SOFT_DELETE_NS].softDeleteTag(t1.id);
+			await server[SOFT_DELETE_NS].softDeleteTag(t2.id);
+
+			expect(await server.listTags()).toHaveLength(0);
+		});
 	});
 
 	suite("deleteTag", () => {
@@ -105,6 +117,14 @@ suite("createSoftDelete", () => {
 			const result = await server[SOFT_DELETE_NS].listSoftDeletedTags();
 			expect(result).toHaveLength(1);
 			expect(result[0]!.id).toBe(gone.id);
+		});
+
+		test("returns empty array when no tags are soft-deleted", async () => {
+			const { server } = setup();
+			await server.addTag({ isDeleted: false });
+			await server.addTag({ isDeleted: false });
+
+			expect(await server[SOFT_DELETE_NS].listSoftDeletedTags()).toHaveLength(0);
 		});
 	});
 
@@ -130,6 +150,38 @@ suite("createSoftDelete", () => {
 
 			const tags = await server.listTags();
 			expect(tags[0]!.id).toBe(tag.id);
+		});
+
+		test("is a no-op on a tag that was never soft-deleted", async () => {
+			const { server } = setup();
+			const tag = await server.addTag({ isDeleted: false });
+
+			await expect(server[SOFT_DELETE_NS].restoreTag(tag.id)).resolves.toBeUndefined();
+			const tags = await server.listTags();
+			expect(tags[0]!.isDeleted).toBe(false);
+		});
+
+		test("throws TagNotFoundError for a hard-deleted (non-existent) tag", async () => {
+			const { server } = setup();
+			const tag = await server.addTag({ isDeleted: false });
+			await server.deleteTag(tag.id);
+
+			await expect(server[SOFT_DELETE_NS].restoreTag(tag.id)).rejects.toBeInstanceOf(
+				TagNotFoundError,
+			);
+		});
+	});
+
+	suite("findObjects with soft-deleted tags", () => {
+		test("objects tagged with a soft-deleted tag still appear in results (known limitation)", async () => {
+			const { server } = setup();
+			const tag = await server.addTag({ isDeleted: false });
+			await server.tagObjects(tag.id, [objectKey("doc1"), objectKey("doc2")]);
+			await server[SOFT_DELETE_NS].softDeleteTag(tag.id);
+
+			const result = await server.findObjects(taggedWithAny(tagsById([tag.id])));
+			expect(result).toContain(objectKey("doc1"));
+			expect(result).toContain(objectKey("doc2"));
 		});
 	});
 });

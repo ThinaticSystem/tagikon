@@ -29,6 +29,18 @@ suite("createHierarchy", () => {
 		});
 	});
 
+	suite("getParent", () => {
+		test("throws TagNotFoundError for a non-existent tag", async () => {
+			const { tagikon } = setup();
+			const tag = await tagikon.addTag({});
+			await tagikon.deleteTag(tag.id);
+
+			await expect(tagikon[HIERARCHY_NS].getParent(tag.id)).rejects.toBeInstanceOf(
+				TagNotFoundError,
+			);
+		});
+	});
+
 	suite("moveTag", () => {
 		test("sets a parent for a tag", async () => {
 			const { tagikon } = setup();
@@ -108,6 +120,27 @@ suite("createHierarchy", () => {
 				TagNotFoundError,
 			);
 		});
+
+		test("HierarchyCycleError carries tagId and targetParentId", async () => {
+			const { tagikon } = setup();
+			const tag = await tagikon.addTag({});
+
+			const error = await tagikon[HIERARCHY_NS].moveTag(tag.id, tag.id).catch((e: unknown) => e);
+
+			expect(error).toBeInstanceOf(HierarchyCycleError);
+			expect((error as HierarchyCycleError<Uuid>).tagId).toBe(tag.id);
+			expect((error as HierarchyCycleError<Uuid>).targetParentId).toBe(tag.id);
+		});
+
+		test("moving to the same parent is idempotent", async () => {
+			const { tagikon } = setup();
+			const parent = await tagikon.addTag({});
+			const child = await tagikon.addTag({});
+			await tagikon[HIERARCHY_NS].moveTag(child.id, parent.id);
+
+			await expect(tagikon[HIERARCHY_NS].moveTag(child.id, parent.id)).resolves.toBeUndefined();
+			expect(await tagikon[HIERARCHY_NS].getParent(child.id)).toBe(parent.id);
+		});
 	});
 
 	suite("listChildren", () => {
@@ -143,6 +176,25 @@ suite("createHierarchy", () => {
 			const children = await tagikon[HIERARCHY_NS].listChildren(tag.id);
 			expect(children).toHaveLength(0);
 		});
+
+		test("returns empty array when the store has no tags at all", async () => {
+			const { tagikon } = setup();
+			expect(await tagikon[HIERARCHY_NS].listChildren(null)).toHaveLength(0);
+		});
+
+		test("does not include non-root tags when called with null", async () => {
+			const { tagikon } = setup();
+			const root = await tagikon.addTag({});
+			const child = await tagikon.addTag({});
+			const grandchild = await tagikon.addTag({});
+			await tagikon[HIERARCHY_NS].moveTag(child.id, root.id);
+			await tagikon[HIERARCHY_NS].moveTag(grandchild.id, child.id);
+
+			const roots = await tagikon[HIERARCHY_NS].listChildren(null);
+			expect(roots).toContain(root.id);
+			expect(roots).not.toContain(child.id);
+			expect(roots).not.toContain(grandchild.id);
+		});
 	});
 
 	suite("listAncestors", () => {
@@ -164,6 +216,15 @@ suite("createHierarchy", () => {
 
 			const ancestors = await tagikon[HIERARCHY_NS].listAncestors(child.id);
 			expect(ancestors).toEqual([parent.id, grandparent.id]);
+		});
+
+		test("returns empty array for a non-existent tag (no exception, unlike getParent)", async () => {
+			const { tagikon } = setup();
+			const phantom = await tagikon.addTag({});
+			await tagikon.deleteTag(phantom.id);
+
+			const ancestors = await tagikon[HIERARCHY_NS].listAncestors(phantom.id);
+			expect(ancestors).toHaveLength(0);
 		});
 	});
 
@@ -190,6 +251,15 @@ suite("createHierarchy", () => {
 			expect(new Set(descendants as string[])).toEqual(
 				new Set([childA.id, childB.id, grandchild.id]),
 			);
+		});
+
+		test("returns empty array for a non-existent tag (no exception, unlike getParent)", async () => {
+			const { tagikon } = setup();
+			const phantom = await tagikon.addTag({});
+			await tagikon.deleteTag(phantom.id);
+
+			const descendants = await tagikon[HIERARCHY_NS].listDescendants(phantom.id);
+			expect(descendants).toHaveLength(0);
 		});
 	});
 

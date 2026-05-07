@@ -12,6 +12,10 @@ tags: [testing, vitest]
 - 各モジュールに `<module>.spec.ts` を **同階層** に配置する
 - テストランナーは [Vitest](https://vitest.dev/)
 - テストのグループ化は `suite` / `test` を使う（`describe` / `it` は禁止）
+- 実装の際は black-box test を心がけ、まずクラスや関数の type signature や JSDoc を見て、その役目を高品質に満たす（非機能要件も含む）を考え、その想像上のクラスや関数に対するテストケースを作成する。この際例え本来の production code を知っていて、それが通らないとわかっていたとしても、気にせず理想的な実装でのテストケースを考えること。
+
+  stub や mock を利用する場合やどうしてもテストが通らない場合はまずユーザーに問い合わせた上で、許可が下りた場合のみ production code を参照すること。（**テスト対象の production code を無断で参照しないこと**）
+
 - インメモリ Storage Adapter を使った**統合テスト**を主軸とする。外部 DB のモック化は禁止
 
 ## 実行コマンド

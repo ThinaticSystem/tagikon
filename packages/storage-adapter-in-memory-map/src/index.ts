@@ -128,6 +128,10 @@ export class MapStorageAdapter<
 
 	async addRelations(tagId: IdOf<TTag>, objectKeys: readonly ObjectKey[]): Promise<void> {
 		const tagIdString = this.#idProvider.serialize(tagId);
+
+		const exist = this.#tags.get(tagIdString);
+		if (!exist) throw new TagNotFoundError(tagId);
+
 		let tagSet = this.#tagToObjects.get(tagIdString);
 		if (!tagSet) {
 			tagSet = new Set();

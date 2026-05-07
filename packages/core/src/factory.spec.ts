@@ -13,7 +13,7 @@ import { objectKey } from "./core/ids.ts";
 import { setupTagikon } from "./factory.ts";
 import { use } from "./plugin/extension/use.ts";
 import { tpc } from "./plugin/storage-adapter/codec.ts";
-import { taggedWithAny, tagsById } from "./query/builders.ts";
+import { not, taggedWithAny, tagsById } from "./query/builders.ts";
 import { PermissionDeniedError } from "./security/permission.ts";
 
 interface TagWithLabel extends Tag<Uuid> {
@@ -49,6 +49,11 @@ suite("setupTagikon", () => {
 			await tagikon.addTag({ label: "b" });
 			const tags = await tagikon.listTags();
 			expect(tags).toHaveLength(2);
+		});
+
+		test("returns empty array when no tags exist", async () => {
+			const { tagikon } = makeTagikon();
+			expect(await tagikon.listTags()).toEqual([]);
 		});
 	});
 
@@ -90,6 +95,16 @@ suite("setupTagikon", () => {
 			const result2 = await tagikon.deleteTag(tag.id);
 			expect(result2).toBe(false);
 		});
+
+		test("removes associated relations on delete", async () => {
+			const { tagikon, storage } = makeTagikon();
+			const tag = await tagikon.addTag({ label: "gone" });
+			await tagikon.tagObjects(tag.id, [objectKey("file1"), objectKey("file2")]);
+			await tagikon.deleteTag(tag.id);
+
+			expect(await storage.listObjectTags(objectKey("file1"))).toHaveLength(0);
+			expect(await storage.listObjectTags(objectKey("file2"))).toHaveLength(0);
+		});
 	});
 
 	suite("tagObjects / untagObjects", () => {
@@ -101,6 +116,16 @@ suite("setupTagikon", () => {
 
 			await tagikon.untagObjects(tag.id, [objectKey("img1")]);
 			expect(await storage.listTagObjects(tag.id)).toEqual([objectKey("img2")]);
+		});
+
+		test("throws TagNotFoundError when tagging with a non-existent tag id", async () => {
+			const { tagikon } = makeTagikon();
+			const tag = await tagikon.addTag({ label: "tmp" });
+			await tagikon.deleteTag(tag.id);
+
+			await expect(tagikon.tagObjects(tag.id, [objectKey("file")])).rejects.toBeInstanceOf(
+				TagNotFoundError,
+			);
 		});
 	});
 
@@ -120,6 +145,91 @@ suite("setupTagikon", () => {
 			expect(objectTags).toContain(t2.id);
 			expect(objectTags).toContain(t3.id);
 			expect(objectTags).not.toContain(t1.id);
+		});
+
+		test("clears all tags when called with empty array", async () => {
+			const { tagikon, storage } = makeTagikon();
+			const t1 = await tagikon.addTag({ label: "t1" });
+			const t2 = await tagikon.addTag({ label: "t2" });
+			await tagikon.tagObjects(t1.id, [objectKey("file")]);
+			await tagikon.tagObjects(t2.id, [objectKey("file")]);
+
+			await tagikon.resetWithTags(objectKey("file"), []);
+
+			expect(await storage.listObjectTags(objectKey("file"))).toHaveLength(0);
+		});
+
+		test("is idempotent when called with the current set of tags", async () => {
+			const { tagikon, storage } = makeTagikon();
+			const t1 = await tagikon.addTag({ label: "t1" });
+			const t2 = await tagikon.addTag({ label: "t2" });
+			await tagikon.tagObjects(t1.id, [objectKey("file")]);
+			await tagikon.tagObjects(t2.id, [objectKey("file")]);
+
+			await tagikon.resetWithTags(objectKey("file"), [t1.id, t2.id]);
+
+			const objectTags = await storage.listObjectTags(objectKey("file"));
+			expect(objectTags).toHaveLength(2);
+			expect(objectTags).toContain(t1.id);
+			expect(objectTags).toContain(t2.id);
+		});
+	});
+
+	suite("findObjects", () => {
+		const setupFindData = async () => {
+			const { tagikon } = makeTagikon();
+			const tag = await tagikon.addTag({ label: "tag" });
+			await tagikon.tagObjects(tag.id, [objectKey("a"), objectKey("b"), objectKey("c")]);
+			return { tagikon, tag };
+		};
+
+		test.each([
+			{ limit: 0, offset: 0 },
+			{ limit: 10, offset: 100 },
+		])(
+			"returns empty array when limit=$limit offset=$offset yields no results",
+			async ({ limit, offset }) => {
+				const { tagikon, tag } = await setupFindData();
+				const result = await tagikon.findObjects(taggedWithAny(tagsById([tag.id])), {
+					limit,
+					offset,
+				});
+				expect(result).toEqual([]);
+			},
+		);
+
+		test("limit=1 returns only the first sorted result", async () => {
+			const { tagikon, tag } = await setupFindData();
+			const result = await tagikon.findObjects(taggedWithAny(tagsById([tag.id])), { limit: 1 });
+			expect(result).toEqual([objectKey("a")]);
+		});
+
+		test("countObjects returns total count regardless of findObjects limit", async () => {
+			const { tagikon, tag } = await setupFindData();
+			expect(await tagikon.countObjects(taggedWithAny(tagsById([tag.id])))).toBe(3);
+		});
+
+		test("not(taggedWithAny(tagsById([]))) returns the universe of all tagged objects", async () => {
+			const { tagikon } = makeTagikon();
+			const tagA = await tagikon.addTag({ label: "a" });
+			const tagB = await tagikon.addTag({ label: "b" });
+			await tagikon.tagObjects(tagA.id, [objectKey("doc1")]);
+			await tagikon.tagObjects(tagB.id, [objectKey("doc2")]);
+
+			const result = await tagikon.findObjects(not(taggedWithAny(tagsById([]))));
+			expect(result).toHaveLength(2);
+			expect(result).toContain(objectKey("doc1"));
+			expect(result).toContain(objectKey("doc2"));
+		});
+
+		test("objects of a deleted tag no longer appear in results", async () => {
+			const { tagikon } = makeTagikon();
+			const tag = await tagikon.addTag({ label: "tag" });
+			await tagikon.tagObjects(tag.id, [objectKey("file1"), objectKey("file2")]);
+			await tagikon.deleteTag(tag.id);
+
+			const result = await tagikon.findObjects(taggedWithAny(tagsById([tag.id])));
+			expect(result).toHaveLength(0);
 		});
 	});
 
@@ -176,6 +286,82 @@ suite("setupTagikon", () => {
 			});
 			const tag = await tagikon.addTag({ label: "hook-test" });
 			expect(after).toHaveBeenCalledWith(expect.anything(), expect.anything(), tag);
+		});
+
+		test("multiple transform hooks chain in registration order", async () => {
+			const tagikon = setupTagikon({
+				tagShape: { id: UUID_ID_PROVIDER, label: tpc.string() },
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
+				extensions: [
+					use<TagWithLabel>({
+						hooks: {
+							addTag: {
+								transform(_ctx, input) {
+									return { ...input, label: input.label.toUpperCase() };
+								},
+							},
+						},
+					}),
+					use<TagWithLabel>({
+						hooks: {
+							addTag: {
+								transform(_ctx, input) {
+									return { ...input, label: input.label + "!" };
+								},
+							},
+						},
+					}),
+				],
+			});
+			const tag = await tagikon.addTag({ label: "hello" });
+			expect(tag.label).toBe("HELLO!");
+		});
+
+		test("tapTransformed is called with the already-transformed value", async () => {
+			const observed: string[] = [];
+			const tagikon = setupTagikon({
+				tagShape: { id: UUID_ID_PROVIDER, label: tpc.string() },
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
+				extensions: [
+					use<TagWithLabel>({
+						hooks: {
+							addTag: {
+								transform(_ctx, input) {
+									return { ...input, label: input.label.toUpperCase() };
+								},
+								tapTransformed(_ctx, input) {
+									observed.push(input.label);
+								},
+							},
+						},
+					}),
+				],
+			});
+			await tagikon.addTag({ label: "hello" });
+			expect(observed).toEqual(["HELLO"]);
+		});
+
+		test("removeTag after hook receives the boolean deletion result", async () => {
+			const results: boolean[] = [];
+			const tagikon = setupTagikon({
+				tagShape: { id: UUID_ID_PROVIDER, label: tpc.string() },
+				storageAdapter: new MapStorageAdapter<TagWithLabel>(),
+				extensions: [
+					use<TagWithLabel>({
+						hooks: {
+							removeTag: {
+								after(_ctx, _input, deleted) {
+									results.push(deleted as boolean);
+								},
+							},
+						},
+					}),
+				],
+			});
+			const tag = await tagikon.addTag({ label: "bye" });
+			await tagikon.deleteTag(tag.id);
+			await tagikon.deleteTag(tag.id); // already gone
+			expect(results).toEqual([true, false]);
 		});
 	});
 
