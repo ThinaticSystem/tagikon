@@ -1,6 +1,8 @@
 {
 	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
 	"extends": ["config:recommended"],
+	"ignorePresets": ["security:minimumReleaseAgeNpm"],
+	"minimumReleaseAge": "14 days",
 	"separateMultipleMajor": true,
 	"semanticCommits": "disabled",
 	"commitMessagePrefix": "deps:",
