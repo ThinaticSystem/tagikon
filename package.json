@@ -15,7 +15,7 @@
 		"check": "pnpm format:dry && pnpm lint && pnpm typecheck && pnpm test:run"
 	},
 	"devDependencies": {
-		"@types/node": "24 - 24.13",
+		"@types/node": "24 - 24.16",
 		"@typescript/native-preview": "7.0.0-dev.20260503.1",
 		"oxfmt": "^0.48.0",
 		"oxlint": "^1.42.0",
