@@ -127,7 +127,13 @@ export interface SetupTagikonOptions<
 	TRegistrations extends readonly ExtensionRegistration<symbol, ApiShape>[] = readonly [],
 > {
 	tagShape: TShape;
-	storageAdapter: StorageAdapterSetup<TagFromShape<TShape>>;
+	/**
+	 * Either a pre-initialization storage adapter setup (which `setupTagikon`
+	 * will initialize), or an already-initialized {@link StorageAdapter}
+	 * returned by {@link migrateTagikon}. The latter avoids a second
+	 * `initialize()` call when migrations are run before setup.
+	 */
+	storageAdapter: StorageAdapterSetup<TagFromShape<TShape>> | StorageAdapter<TagFromShape<TShape>>;
 	/**
 	 * Extensions registered at the root. Each entry is exposed on the returned
 	 * Tagikon object under its namespace symbol; their descendants stay private.
@@ -269,9 +275,10 @@ export const setupTagikon = <
 		extensions: rootRegistrations = [] as unknown as TRegistrations,
 	} = options;
 
-	const initializedAdapter = storageAdapter.initialize(
-		tagShape as unknown as TagShape<TagFromShape<TShape>>,
-	);
+	const initializedAdapter: StorageAdapter<TagFromShape<TShape>> =
+		"initialize" in storageAdapter
+			? storageAdapter.initialize(tagShape as unknown as TagShape<TagFromShape<TShape>>)
+			: storageAdapter;
 
 	// Build the set of required (non-optional) property names from the shape for runtime validation.
 	const requiredProperties = new Set(

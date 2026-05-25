@@ -137,4 +137,43 @@ export interface StorageAdapter<TTag extends Tag = Tag> {
 		extensionId: symbol,
 		auxCodec?: AuxCodec<TData>,
 	): AuxStore<IdOf<TTag>, TData>;
+
+	/**
+	 * Returns the persisted migration version for the given extension stable ID,
+	 * or `null` if no migration has been recorded yet (i.e. the extension is
+	 * newly installed or pre-dates the migration system).
+	 *
+	 * @param stableId - The extension's stable string identifier (e.g. its npm
+	 *   package name). Must match the value declared in
+	 *   {@link ExtensionMigrationManifest.stableId}.
+	 */
+	getMigrationVersion(stableId: string): Promise<null | number>;
+
+	/**
+	 * Persists the migration version reached for the given extension stable ID.
+	 * Called by {@link migrateTagikon} after each step completes successfully,
+	 * so partial progress survives a crash and the migration can resume.
+	 *
+	 * @param stableId - The extension's stable string identifier.
+	 * @param version - The `toVersion` of the step that just succeeded.
+	 */
+	setMigrationVersion(stableId: string, version: number): Promise<void>;
+}
+
+/**
+ * Optional interface for storage adapters that support schema-level migrations
+ * (e.g. adding columns, creating tables). Implement this on the
+ * {@link StorageAdapterSetup} class alongside the regular setup interface.
+ *
+ * {@link migrateTagikon} detects this interface via duck-typing and calls
+ * `runStorageMigrations` **before** `initialize`, so schema changes land
+ * before any extension data migration runs.
+ */
+export interface StorageAdapterWithMigrations {
+	/**
+	 * Runs all pending storage-level schema migrations.
+	 * Implementations must be idempotent — safe to call multiple times.
+	 * Use your own internal version tracking to skip already-applied steps.
+	 */
+	runStorageMigrations(): Promise<void>;
 }

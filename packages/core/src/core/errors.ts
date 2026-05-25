@@ -131,3 +131,42 @@ export class StorageAdapterNotInitializedError extends StorageAdapterError {
 		this.adapterName = adapterName;
 	}
 }
+
+/**
+ * Base class for errors occurring during migration execution.
+ */
+export class MigrationError extends TagikonError {}
+
+/**
+ * Thrown when an extension's migration manifest is invalid — e.g. the steps
+ * array has gaps or duplicate version numbers, or the extension does not
+ * declare a `namespace` symbol (required for stable AuxStore identity).
+ */
+export class InvalidExtensionMigrationError extends MigrationError {
+	readonly name = "InvalidExtensionMigrationError";
+	readonly stableId: string;
+
+	constructor(stableId: string, message: string) {
+		super(`Extension "${stableId}": ${message}`);
+		this.stableId = stableId;
+	}
+}
+
+/**
+ * Thrown when a migration step's `migrate()` function throws.
+ * The original error is available via the standard `cause` property.
+ */
+export class ExtensionMigrationStepError extends MigrationError {
+	readonly name = "ExtensionMigrationStepError";
+	readonly stableId: string;
+	readonly toVersion: number;
+
+	constructor(stableId: string, toVersion: number, cause: unknown) {
+		super(
+			`Migration for extension "${stableId}" to version ${toVersion} failed`,
+			{ cause },
+		);
+		this.stableId = stableId;
+		this.toVersion = toVersion;
+	}
+}

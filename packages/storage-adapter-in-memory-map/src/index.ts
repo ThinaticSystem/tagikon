@@ -62,6 +62,8 @@ export class MapStorageAdapter<
 	// extension symbol → its private auxiliary data map (keyed by serialized tag id)
 	readonly #auxByExtension = new Map<symbol, Map<string, unknown>>();
 	readonly #auxStoreWrappers = new Map<symbol, AuxStore<IdOf<TTag>, unknown>>();
+	// stableId string → migration version number
+	readonly #migrationVersions = new Map<string, number>();
 	/**
 	 * DO NOT ACCESS DIRECTLY\
 	 * Use {@link #idProvider} getter instead, which throws if this is not set yet.
@@ -241,5 +243,13 @@ export class MapStorageAdapter<
 		this.#auxStoreWrappers.set(extensionId, wrapper as AuxStore<IdOf<TTag>, unknown>);
 
 		return wrapper;
+	}
+
+	async getMigrationVersion(stableId: string): Promise<null | number> {
+		return this.#migrationVersions.get(stableId) ?? null;
+	}
+
+	async setMigrationVersion(stableId: string, version: number): Promise<void> {
+		this.#migrationVersions.set(stableId, version);
 	}
 }

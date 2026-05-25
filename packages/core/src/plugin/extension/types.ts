@@ -3,6 +3,7 @@ import type { IdOf, Tag } from "../../core/tag.ts";
 import type { HookPhases } from "../../hook/types.ts";
 import type { FindObjectsOptions, ObjectQuery } from "../../query/types.ts";
 import type { Permission, PermissionManifest } from "../../security/permission.ts";
+import type { AuxStore } from "../storage-adapter/aux-store.ts";
 import type { AuxCodec } from "../storage-adapter/codec.ts";
 import type { ExtensionContext } from "./context.ts";
 
@@ -124,6 +125,74 @@ export type ChildrenApiOf<
 > = UnionToIntersection<ApiOfRegistration<TRegistrations[number]>>;
 // #endregion
 
+//#region Migration types
+
+/**
+ * Context passed to each migration step's `migrate()` function.
+ *
+ * - `aux` exposes the extension's raw AuxStore without codec decoding, so the
+ *   migrator can read data written by the previous schema version.
+ * - `tags` provides read/write access to the full tag set for migrations that
+ *   need to change tag fields directly.
+ *
+ * @typeParam TTag - The tag type for this Tagikon instance.
+ */
+export interface ExtensionMigrationContext<TTag extends Tag> {
+	/** Raw AuxStore for this extension — codec is bypassed (`TData = unknown`). */
+	readonly aux: AuxStore<IdOf<TTag>, unknown>;
+	readonly tags: {
+		/** Returns every tag currently in storage. */
+		listAll(): Promise<TTag[]>;
+		/**
+		 * Patches a tag's non-id fields.
+		 *
+		 * @throws {@link TagNotFoundError} if no tag with `id` exists.
+		 */
+		update(id: IdOf<TTag>, patch: Partial<Omit<TTag, "id">>): Promise<TTag>;
+	};
+}
+
+/**
+ * A single forward-only migration step.
+ * Steps are applied in ascending `toVersion` order; each must be consecutive
+ * starting from 1 (no gaps, no duplicates).
+ *
+ * @typeParam TTag - The tag type for this Tagikon instance.
+ */
+export interface ExtensionMigration<TTag extends Tag> {
+	/**
+	 * The version number this step achieves.
+	 * Must be consecutive starting from 1 — validated by {@link migrateTagikon}.
+	 */
+	readonly toVersion: number;
+	readonly migrate: (ctx: ExtensionMigrationContext<TTag>) => Promise<void>;
+}
+
+/**
+ * Migration manifest attached to an {@link Extension}.
+ * Declare this when the shape of your extension's AuxStore data (or tag
+ * fields) changes between published versions.
+ *
+ * @typeParam TTag - The tag type for this Tagikon instance.
+ */
+export interface ExtensionMigrationManifest<TTag extends Tag> {
+	/**
+	 * Stable cross-process identifier for this extension.
+	 * Use your npm package name (e.g. `"@tagikon/extension-hierarchy"`).
+	 * **Never change this value** after deployment — it is the persistence key
+	 * used to track which migration steps have already been applied.
+	 */
+	readonly stableId: string;
+	/**
+	 * Migration steps in ascending `toVersion` order (1, 2, 3, …).
+	 * {@link migrateTagikon} validates that the sequence is contiguous before
+	 * running any step.
+	 */
+	readonly steps: readonly ExtensionMigration<TTag>[];
+}
+
+// #endregion
+
 //#region Extension interface
 /**
  * The pluggable unit that observes and modifies tag operations.\
@@ -213,5 +282,16 @@ export interface Extension<
 		>;
 	};
 	api?: ApiImplementation<ExtensionContext<TTag, TAux, TChildrenApi>, TApi>;
+	/**
+	 * Optional migration manifest for upgrading this extension's persisted
+	 * data (AuxStore entries or tag fields) across versions.
+	 *
+	 * **Requires `namespace`** — the namespace symbol is used as the AuxStore
+	 * identity key in both {@link migrateTagikon} and {@link setupTagikon},
+	 * so a stable symbol is required for the migration context to address the
+	 * correct store. Declaring `migration` without `namespace` will cause
+	 * {@link migrateTagikon} to throw {@link InvalidExtensionMigrationError}.
+	 */
+	migration?: ExtensionMigrationManifest<TTag>;
 }
 // #endregion
