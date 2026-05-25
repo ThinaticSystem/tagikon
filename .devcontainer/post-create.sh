@@ -22,6 +22,17 @@ package_manager=$(npm info ./ packageManager)
 npm install \
 	--global \
 	"$package_manager"
+SHELL=bash \
+	pnpm setup
+export PNPM_HOME="/home/vscode/.local/share/pnpm"
+case ":$PATH:" in
+	*":$PNPM_HOME/bin:"*) ;;
+	*) export PATH="$PNPM_HOME/bin:$PATH" ;;
+esac
+pnpm config \
+	set \
+	--location=global \
+	minimumReleaseAge 20160
 
 # Install pnpm dependencies
 pnpm install
