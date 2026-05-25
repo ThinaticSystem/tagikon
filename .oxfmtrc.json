@@ -1,7 +1,7 @@
 {
 	"$schema": "./node_modules/oxfmt/configuration_schema.json",
-	"useTabs": true,
 	"ignorePatterns": [".devcontainer/devcontainer-lock.json"],
+	"useTabs": true,
 	"sortImports": {
 		"groups": [
 			"type",
