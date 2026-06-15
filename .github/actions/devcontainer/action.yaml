@@ -10,7 +10,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: devcontainers/ci@v0.3.1900000449
+    - uses: devcontainers/ci@v0.3.1900000450
       with:
         imageName: ${{ inputs.cache_image_name }}
         cacheFrom: ${{ inputs.cache_image_name }}
