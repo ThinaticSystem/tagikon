@@ -22,5 +22,5 @@
 		"oxlint-tsgolint": "^0.22.0",
 		"vitest": "^4.0.18"
 	},
-	"packageManager": "pnpm@11.3.0"
+	"packageManager": "pnpm@11.22.0"
 }
